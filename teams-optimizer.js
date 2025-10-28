@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Teams Mobile Optimized
+// @name         Teams Mobile Pro
 // @namespace    http://tampermonkey.net/
-// @version      5.2
-// @description  Layout mobile per Teams con colori originali
+// @version      5.3
+// @description  Teams mobile con icone stato piccole e input ottimizzato
 // @author       You
 // @match        https://teams.microsoft.com/*
 // @match        https://*.teams.microsoft.com/*
@@ -16,103 +16,46 @@
         
         const style = document.createElement('style');
         style.textContent = `
-            /* RESET E LAYOUT BASE */
+            /* LAYOUT BASE */
             html, body {
                 width: 100vw !important;
                 height: 100vh !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: hidden !important;
-                font-family: 'Segoe UI', SegoeUI, 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
             }
             
-            /* LAYOUT PRINCIPALE COMPATTO */
-            #teams-app-root,
-            .teams-app-layout {
-                width: 100vw !important;
-                height: 100vh !important;
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                background: #f8f8f8 !important;
-            }
-            
-            /* BARRA LATERALE TEAMS - COMPATTA */
-            .app-bar,
-            .LeftRail,
-            .left-rail-container {
-                width: 68px !important;
-                min-width: 68px !important;
-                max-width: 68px !important;
+            /* BARRA LATERALE COMPATTA */
+            .app-bar, .LeftRail {
+                width: 60px !important;
+                min-width: 60px !important;
+                max-width: 60px !important;
                 height: 100vh !important;
                 position: fixed !important;
                 left: 0 !important;
                 top: 0 !important;
-                background: #f3f2f1 !important;
-                border-right: 1px solid #e1dfdd !important;
                 z-index: 1000 !important;
-                padding: 16px 0 !important;
             }
             
             /* CONTENUTO PRINCIPALE */
-            .app-main,
-            .main-content {
-                margin-left: 68px !important;
-                width: calc(100vw - 68px) !important;
+            .app-main {
+                margin-left: 60px !important;
+                width: calc(100vw - 60px) !important;
                 height: 100vh !important;
                 position: fixed !important;
                 top: 0 !important;
                 right: 0 !important;
                 background: white !important;
-                overflow: hidden !important;
-            }
-            
-            /* HEADER COMPATTO */
-            .app-header,
-            .ts-chat-header,
-            .chat-header {
-                height: 56px !important;
-                min-height: 56px !important;
-                background: white !important;
-                border-bottom: 1px solid #e1dfdd !important;
-                padding: 8px 16px !important;
-                display: flex !important;
-                align-items: center !important;
-                position: relative !important;
-                z-index: 900 !important;
-            }
-            
-            /* LISTA CHAT - OCCUPA TUTTO LO SPAZIO */
-            .ts-chat-list,
-            .chat-list {
-                width: 100% !important;
-                height: calc(100vh - 56px) !important;
-                overflow-y: auto !important;
-                padding: 8px 0 !important;
-                background: white !important;
-            }
-            
-            /* ELEMENTI LISTA CHAT */
-            .ts-chat-list-item,
-            .chat-list-item {
-                width: 100% !important;
-                padding: 12px 16px !important;
-                margin: 0 !important;
-                min-height: 72px !important;
-                border-bottom: 1px solid #f3f2f1 !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 12px !important;
             }
             
             /* AVATAR GRANDI E VISIBILI */
             .ts-avatar,
             [class*="avatar"],
             [data-tid="avatar"] {
-                width: 48px !important;
-                height: 48px !important;
-                min-width: 48px !important;
-                min-height: 48px !important;
+                width: 44px !important;
+                height: 44px !important;
+                min-width: 44px !important;
+                min-height: 44px !important;
                 border-radius: 50% !important;
                 background: #6264a7 !important;
                 display: flex !important;
@@ -120,158 +63,191 @@
                 justify-content: center !important;
                 color: white !important;
                 font-weight: 600 !important;
-                font-size: 16px !important;
+                position: relative !important;
             }
             
-            /* CONTENUTO CHAT */
-            .ts-chat-list-item-content,
-            .chat-list-item-content {
-                flex: 1 !important;
-                min-width: 0 !important;
+            /* ICONE DI STATO PICCOLE */
+            .ts-presence,
+            [class*="presence"],
+            [class*="status"],
+            .presence-icon {
+                width: 10px !important;
+                height: 10px !important;
+                min-width: 10px !important;
+                min-height: 10px !important;
+                border: 2px solid white !important;
+                border-radius: 50% !important;
+                position: absolute !important;
+                bottom: 2px !important;
+                right: 2px !important;
+                z-index: 10 !important;
             }
             
-            /* NOMI CONTATTI */
-            .ts-chat-list-item-title,
-            .chat-list-item-title {
-                font-size: 16px !important;
-                font-weight: 600 !important;
-                color: #323130 !important;
-                margin-bottom: 4px !important;
+            /* COLORI STATO */
+            .ts-presence-available,
+            [class*="available"] {
+                background: #6bb700 !important;
             }
             
-            /* ANTEPRIMA MESSAGGIO */
-            .ts-chat-list-item-preview,
-            .chat-list-item-preview {
-                font-size: 14px !important;
-                color: #605e5c !important;
-                white-space: nowrap !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
+            .ts-presence-away,
+            [class*="away"] {
+                background: #ffaa44 !important;
             }
             
-            /* TIMESTAMP */
-            .ts-chat-list-item-time,
-            .chat-list-item-time {
-                font-size: 12px !important;
-                color: #8a8886 !important;
-                white-space: nowrap !important;
+            .ts-presence-busy,
+            [class*="busy"] {
+                background: #d13438 !important;
             }
             
-            /* CHAT VIEW */
+            .ts-presence-offline,
+            [class*="offline"] {
+                background: #8a8886 !important;
+            }
+            
+            /* CHAT CONTAINER */
             .ts-chat-container,
             .chat-container {
                 position: absolute !important;
-                top: 56px !important;
+                top: 0 !important;
                 left: 0 !important;
                 right: 0 !important;
-                bottom: 76px !important;
-                width: 100% !important;
+                bottom: 80px !important;
                 height: auto !important;
-                padding: 16px !important;
+                padding: 15px !important;
                 overflow-y: auto !important;
-                background: white !important;
             }
             
-            /* MESSAGGI */
-            .chat-message,
-            .message-item {
-                max-width: 85% !important;
-                margin: 8px 0 !important;
-                padding: 12px 16px !important;
-                border-radius: 8px !important;
-                word-wrap: break-word !important;
-            }
-            
-            .chat-message.received,
-            .message-item.received {
-                background: #f3f2f1 !important;
-                margin-right: auto !important;
-            }
-            
-            .chat-message.sent,
-            .message-item.sent {
-                background: #e1edf7 !important;
-                margin-left: auto !important;
-            }
-            
-            /* INPUT MESSAGGI */
+            /* BOX INPUT MESSAGGI OTTIMIZZATO PER MOBILE */
             .ts-message-compose-box,
-            .compose-box {
+            .compose-box,
+            .message-compose-box {
                 position: fixed !important;
-                bottom: 0 !important;
-                left: 68px !important;
-                right: 0 !important;
-                width: calc(100vw - 68px) !important;
-                height: 76px !important;
+                bottom: 10px !important;
+                left: 70px !important;
+                right: 10px !important;
+                width: calc(100vw - 80px) !important;
+                height: auto !important;
+                min-height: 60px !important;
                 background: white !important;
-                border-top: 1px solid #e1dfdd !important;
-                padding: 12px 16px !important;
+                border: 1px solid #e1e1e1 !important;
+                border-radius: 20px !important;
                 z-index: 1000 !important;
+                padding: 8px 15px !important;
+                margin: 0 !important;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
                 display: flex !important;
                 align-items: center !important;
-                gap: 12px !important;
+                gap: 10px !important;
             }
             
-            /* TEXTAREA */
+            /* TEXTAREA GRANDE E COMFORTEVOLE */
             textarea,
-            [role="textbox"] {
+            [role="textbox"],
+            .compose-box-input {
                 flex: 1 !important;
-                min-height: 52px !important;
-                max-height: 100px !important;
-                padding: 12px 16px !important;
-                border: 1px solid #e1dfdd !important;
-                border-radius: 4px !important;
-                font-size: 15px !important;
-                resize: none !important;
-                font-family: inherit !important;
-            }
-            
-            /* BOTTONI */
-            button,
-            .ts-btn {
                 min-height: 44px !important;
-                min-width: 44px !important;
-                padding: 8px 12px !important;
-                border-radius: 4px !important;
-                font-size: 14px !important;
-                border: 1px solid transparent !important;
+                max-height: 120px !important;
+                padding: 12px 0 !important;
+                border: none !important;
                 background: transparent !important;
-                color: #323130 !important;
+                font-size: 16px !important;
+                line-height: 1.4 !important;
+                resize: none !important;
+                outline: none !important;
+                font-family: inherit !important;
+                margin: 0 !important;
             }
             
-            button:hover,
-            .ts-btn:hover {
-                background: #f3f2f1 !important;
+            /* BOTTONI NELL'INPUT */
+            .ts-message-compose-box button,
+            .compose-box button {
+                min-width: 40px !important;
+                min-height: 40px !important;
+                padding: 8px !important;
+                background: transparent !important;
+                border: none !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
             }
             
             /* BOTTONE INVIO */
-            .ts-send-button {
+            .ts-send-button,
+            [data-tid="send-message-button"] {
                 background: #6264a7 !important;
                 color: white !important;
-                border: none !important;
             }
             
             .ts-send-button:hover {
                 background: #585a96 !important;
             }
             
-            /* ICONE */
-            .ts-icon,
-            svg {
+            /* ICONE NELL'INPUT */
+            .ts-message-compose-box .ts-icon,
+            .compose-box svg {
                 width: 20px !important;
                 height: 20px !important;
-                fill: #605e5c !important;
             }
             
-            /* BARRA LATERALE ICONE */
-            .app-bar .ts-icon,
-            .LeftRail svg {
-                width: 24px !important;
-                height: 24px !important;
+            /* LISTA CHAT */
+            .ts-chat-list,
+            .chat-list {
+                width: 100% !important;
+                padding: 10px 0 !important;
             }
             
-            /* BOTTONE CHAT RAPIDA */
-            .teams-quick-action {
+            .ts-chat-list-item,
+            .chat-list-item {
+                width: 100% !important;
+                padding: 12px 15px !important;
+                min-height: 68px !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+            }
+            
+            /* CONTENUTO CHAT */
+            .ts-chat-list-item-content {
+                flex: 1 !important;
+                min-width: 0 !important;
+            }
+            
+            .ts-chat-list-item-title {
+                font-size: 16px !important;
+                font-weight: 600 !important;
+                margin-bottom: 4px !important;
+            }
+            
+            .ts-chat-list-item-preview {
+                font-size: 14px !important;
+                color: #666 !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            
+            /* MESSAGGI */
+            .chat-message {
+                max-width: 85% !important;
+                margin: 8px 0 !important;
+                padding: 12px 16px !important;
+                border-radius: 18px !important;
+                word-wrap: break-word !important;
+            }
+            
+            .chat-message.received {
+                background: #f3f2f1 !important;
+                margin-right: auto !important;
+            }
+            
+            .chat-message.sent {
+                background: #e1edf7 !important;
+                margin-left: auto !important;
+            }
+            
+            /* BOTTONE AZIONE RAPIDA */
+            .mobile-quick-action {
                 position: fixed !important;
                 right: 20px !important;
                 bottom: 90px !important;
@@ -287,134 +263,142 @@
                 justify-content: center !important;
                 font-size: 20px !important;
                 cursor: pointer !important;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
             }
             
-            /* STATO ONLINE/OFFLINE */
-            .ts-presence,
-            [class*="presence"] {
-                width: 12px !important;
-                height: 12px !important;
-                border: 2px solid white !important;
-                border-radius: 50% !important;
-                position: absolute !important;
-                bottom: 2px !important;
-                right: 2px !important;
+            /* HEADER NASCOSTO O COMPATTO */
+            .app-header,
+            .ts-chat-header {
+                height: 50px !important;
+                min-height: 50px !important;
+                padding: 10px 15px !important;
             }
             
-            .ts-presence-available {
-                background: #6bb700 !important;
-            }
-            
-            .ts-presence-away {
-                background: #ffaa44 !important;
-            }
-            
-            /* SCROLLBAR */
+            /* SCROLLBAR NASCOSTA */
             ::-webkit-scrollbar {
-                width: 6px !important;
+                display: none !important;
             }
             
-            ::-webkit-scrollbar-thumb {
-                background: #c8c6c4 !important;
-                border-radius: 3px !important;
-            }
-            
-            /* RESPONSIVE */
+            /* ADATTAMENTO MOBILE */
             @media (max-width: 480px) {
                 .app-bar, .LeftRail {
-                    width: 60px !important;
+                    width: 55px !important;
                 }
                 
                 .app-main {
-                    margin-left: 60px !important;
-                    width: calc(100vw - 60px) !important;
+                    margin-left: 55px !important;
+                    width: calc(100vw - 55px) !important;
                 }
                 
                 .ts-message-compose-box {
-                    left: 60px !important;
-                    width: calc(100vw - 60px) !important;
+                    left: 65px !important;
+                    width: calc(100vw - 75px) !important;
                 }
                 
                 .ts-avatar {
-                    width: 44px !important;
-                    height: 44px !important;
+                    width: 40px !important;
+                    height: 40px !important;
+                }
+                
+                /* ICONE STATO ANCORA PIÙ PICCOLE SU MOBILE */
+                .ts-presence,
+                [class*="presence"] {
+                    width: 8px !important;
+                    height: 8px !important;
+                    border-width: 1.5px !important;
                 }
             }
             
-            /* CORREZIONI SPECIFICHE */
-            .ts-chat-list-item.unread {
-                background: #f1f1f1 !important;
+            /* MIGLIORAMENTO TOUCH */
+            button, .ts-btn {
+                min-height: 44px !important;
+                min-width: 44px !important;
+                padding: 12px !important;
             }
             
-            .ts-chat-list-item.unread .ts-chat-list-item-title {
-                font-weight: 700 !important;
-            }
-            
-            .ts-chat-list-item.selected {
-                background: #e1edf7 !important;
-            }
-            
-            /* NASCONDI ELEMENTI NON NECESSARI */
-            .ts-app-header,
-            .teamHeader,
-            .command-bar {
-                display: none !important;
+            /* CORREZIONE IMMAGINI PROFILO */
+            .ts-avatar img,
+            [class*="avatar"] img {
+                width: 100% !important;
+                height: 100% !important;
+                border-radius: 50% !important;
+                object-fit: cover !important;
             }
         `;
         document.head.appendChild(style);
         
-        // Aggiungi bottone azione rapida
+        // Bottone azione rapida
         const quickAction = document.createElement('button');
-        quickAction.className = 'teams-quick-action';
+        quickAction.className = 'mobile-quick-action';
         quickAction.innerHTML = '💬';
         quickAction.title = 'Nuovo messaggio';
         
         quickAction.addEventListener('click', function() {
-            // Focus sull'input di ricerca o nuovo messaggio
-            const searchInput = document.querySelector('input[type="search"], input[placeholder*="search"], input[placeholder*="cerca"]');
             const messageInput = document.querySelector('textarea, [role="textbox"]');
-            
-            if (searchInput) {
-                searchInput.focus();
-            } else if (messageInput) {
+            if (messageInput) {
                 messageInput.focus();
+                // Scroll alla vista
+                setTimeout(() => {
+                    messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
             }
         });
         
         document.body.appendChild(quickAction);
         
-        // Funzione per migliorare le immagini profilo
-        function enhanceProfileImages() {
-            const avatars = document.querySelectorAll('.ts-avatar, [class*="avatar"]');
-            avatars.forEach(avatar => {
-                // Assicurati che le immagini siano visibili
-                avatar.style.display = 'flex';
-                avatar.style.visibility = 'visible';
-                avatar.style.opacity = '1';
-                
-                // Se è un'immagine, assicurati che sia caricata correttamente
-                const img = avatar.querySelector('img');
-                if (img) {
-                    img.style.width = '100%';
-                    img.style.height = '100%';
-                    img.style.borderRadius = '50%';
-                    img.style.objectFit = 'cover';
-                }
+        // Funzione per ottimizzare le icone di stato
+        function optimizeStatusIcons() {
+            // Icone di presenza
+            const presenceIcons = document.querySelectorAll('.ts-presence, [class*="presence"], [class*="status"]');
+            presenceIcons.forEach(icon => {
+                icon.style.width = '10px';
+                icon.style.height = '10px';
+                icon.style.minWidth = '10px';
+                icon.style.minHeight = '10px';
+                icon.style.border = '2px solid white';
+                icon.style.borderRadius = '50%';
+                icon.style.position = 'absolute';
+                icon.style.bottom = '2px';
+                icon.style.right = '2px';
+                icon.style.zIndex = '10';
             });
             
-            // Correggi il layout delle chat
-            const chatItems = document.querySelectorAll('.ts-chat-list-item');
-            chatItems.forEach(item => {
-                item.style.width = '100%';
-                item.style.margin = '0';
-                item.style.padding = '12px 16px';
+            // Assicurati che gli avatar abbiano position: relative
+            const avatars = document.querySelectorAll('.ts-avatar, [class*="avatar"]');
+            avatars.forEach(avatar => {
+                avatar.style.position = 'relative';
             });
         }
         
-        // Applica miglioramenti
-        setTimeout(enhanceProfileImages, 1000);
-        setInterval(enhanceProfileImages, 3000);
+        // Funzione per migliorare l'input box
+        function enhanceInputBox() {
+            const inputBoxes = document.querySelectorAll('.ts-message-compose-box, .compose-box');
+            inputBoxes.forEach(box => {
+                box.style.borderRadius = '20px';
+                box.style.padding = '8px 15px';
+                box.style.gap = '10px';
+                box.style.alignItems = 'center';
+                
+                // Assicurati che la textarea sia grande abbastanza
+                const textarea = box.querySelector('textarea, [role="textbox"]');
+                if (textarea) {
+                    textarea.style.minHeight = '44px';
+                    textarea.style.padding = '12px 0';
+                }
+            });
+        }
+        
+        // Applica le ottimizzazioni
+        setTimeout(() => {
+            optimizeStatusIcons();
+            enhanceInputBox();
+        }, 1000);
+        
+        // Riapplica periodicamente
+        setInterval(() => {
+            optimizeStatusIcons();
+            enhanceInputBox();
+        }, 3000);
         
         // Auto-scroll per nuovi messaggi
         setInterval(function() {
@@ -427,7 +411,7 @@
             }
         }, 2000);
         
-        console.log('🎯 Teams Mobile Optimized - Attivo con colori originali!');
+        console.log('📱 Teams Mobile Pro - Icone stato piccole e input ottimizzato!');
     });
 
 })();
