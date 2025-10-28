@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Teams WhatsApp Style
+// @name         Teams Mobile Optimized
 // @namespace    http://tampermonkey.net/
-// @version      5.0
-// @description  Trasforma Teams in stile WhatsApp - Layout semplice e pulito
+// @version      5.2
+// @description  Layout mobile per Teams con colori originali
 // @author       You
 // @match        https://teams.microsoft.com/*
 // @match        https://*.teams.microsoft.com/*
@@ -16,504 +16,418 @@
         
         const style = document.createElement('style');
         style.textContent = `
-            /* RESET COMPLETO LAYOUT TEAMS */
-            body, html, #teams-app-root, .teams-app-layout {
+            /* RESET E LAYOUT BASE */
+            html, body {
                 width: 100vw !important;
                 height: 100vh !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: hidden !important;
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
+                font-family: 'Segoe UI', SegoeUI, 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
             }
             
-            /* NASCONDI TUTTO IL LAYOUT ORIGINALE TEAMS */
-            .app-bar,
-            .LeftRail,
-            .left-rail-container,
-            .global-nav-bar,
-            .app-header,
-            .teamHeader,
-            .header-bar,
-            .command-bar,
-            .ts-app-header,
-            [class*="header"],
-            [data-tid="left-rail"] {
-                display: none !important;
-            }
-            
-            /* LAYOUT WHATSAPP STYLE */
-            .whatsapp-layout {
+            /* LAYOUT PRINCIPALE COMPATTO */
+            #teams-app-root,
+            .teams-app-layout {
+                width: 100vw !important;
+                height: 100vh !important;
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                width: 100vw !important;
+                background: #f8f8f8 !important;
+            }
+            
+            /* BARRA LATERALE TEAMS - COMPATTA */
+            .app-bar,
+            .LeftRail,
+            .left-rail-container {
+                width: 68px !important;
+                min-width: 68px !important;
+                max-width: 68px !important;
                 height: 100vh !important;
-                background: #f0f0f0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                z-index: 10000 !important;
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                background: #f3f2f1 !important;
+                border-right: 1px solid #e1dfdd !important;
+                z-index: 1000 !important;
+                padding: 16px 0 !important;
             }
             
-            /* HEADER SUPERIORE STILE WHATSAPP */
-            .whatsapp-header {
-                background: #075e54 !important;
-                color: white !important;
-                padding: 15px 20px !important;
-                height: 70px !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: space-between !important;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-            }
-            
-            .whatsapp-header-title {
-                font-size: 20px !important;
-                font-weight: 600 !important;
-                margin-left: 15px !important;
-            }
-            
-            .whatsapp-header-icons {
-                display: flex !important;
-                gap: 20px !important;
-                font-size: 20px !important;
-            }
-            
-            /* LISTA CHAT STILE WHATSAPP */
-            .whatsapp-chat-list {
-                flex: 1 !important;
-                overflow-y: auto !important;
+            /* CONTENUTO PRINCIPALE */
+            .app-main,
+            .main-content {
+                margin-left: 68px !important;
+                width: calc(100vw - 68px) !important;
+                height: 100vh !important;
+                position: fixed !important;
+                top: 0 !important;
+                right: 0 !important;
                 background: white !important;
-                padding: 0 !important;
-                margin: 0 !important;
+                overflow: hidden !important;
             }
             
-            .whatsapp-chat-item {
+            /* HEADER COMPATTO */
+            .app-header,
+            .ts-chat-header,
+            .chat-header {
+                height: 56px !important;
+                min-height: 56px !important;
+                background: white !important;
+                border-bottom: 1px solid #e1dfdd !important;
+                padding: 8px 16px !important;
                 display: flex !important;
                 align-items: center !important;
-                padding: 15px 20px !important;
-                border-bottom: 1px solid #f0f0f0 !important;
-                min-height: 80px !important;
-                cursor: pointer !important;
-                transition: background 0.2s !important;
+                position: relative !important;
+                z-index: 900 !important;
             }
             
-            .whatsapp-chat-item:hover {
-                background: #f5f5f5 !important;
+            /* LISTA CHAT - OCCUPA TUTTO LO SPAZIO */
+            .ts-chat-list,
+            .chat-list {
+                width: 100% !important;
+                height: calc(100vh - 56px) !important;
+                overflow-y: auto !important;
+                padding: 8px 0 !important;
+                background: white !important;
             }
             
-            .whatsapp-avatar {
-                width: 55px !important;
-                height: 55px !important;
+            /* ELEMENTI LISTA CHAT */
+            .ts-chat-list-item,
+            .chat-list-item {
+                width: 100% !important;
+                padding: 12px 16px !important;
+                margin: 0 !important;
+                min-height: 72px !important;
+                border-bottom: 1px solid #f3f2f1 !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 12px !important;
+            }
+            
+            /* AVATAR GRANDI E VISIBILI */
+            .ts-avatar,
+            [class*="avatar"],
+            [data-tid="avatar"] {
+                width: 48px !important;
+                height: 48px !important;
+                min-width: 48px !important;
+                min-height: 48px !important;
                 border-radius: 50% !important;
-                background: #075e54 !important;
+                background: #6264a7 !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
                 color: white !important;
-                font-weight: bold !important;
-                font-size: 18px !important;
-                margin-right: 15px !important;
-                flex-shrink: 0 !important;
+                font-weight: 600 !important;
+                font-size: 16px !important;
             }
             
-            .whatsapp-chat-info {
+            /* CONTENUTO CHAT */
+            .ts-chat-list-item-content,
+            .chat-list-item-content {
                 flex: 1 !important;
                 min-width: 0 !important;
             }
             
-            .whatsapp-chat-name {
-                font-size: 17px !important;
+            /* NOMI CONTATTI */
+            .ts-chat-list-item-title,
+            .chat-list-item-title {
+                font-size: 16px !important;
                 font-weight: 600 !important;
-                margin-bottom: 5px !important;
-                color: #333 !important;
+                color: #323130 !important;
+                margin-bottom: 4px !important;
             }
             
-            .whatsapp-chat-preview {
+            /* ANTEPRIMA MESSAGGIO */
+            .ts-chat-list-item-preview,
+            .chat-list-item-preview {
                 font-size: 14px !important;
-                color: #666 !important;
+                color: #605e5c !important;
                 white-space: nowrap !important;
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
             }
             
-            .whatsapp-chat-time {
+            /* TIMESTAMP */
+            .ts-chat-list-item-time,
+            .chat-list-item-time {
                 font-size: 12px !important;
-                color: #999 !important;
+                color: #8a8886 !important;
                 white-space: nowrap !important;
             }
             
-            /* BARRA DI RICERCA */
-            .whatsapp-search {
-                padding: 15px 20px !important;
-                background: white !important;
-                border-bottom: 1px solid #eee !important;
-            }
-            
-            .whatsapp-search-input {
-                width: 100% !important;
-                padding: 12px 20px !important;
-                border: none !important;
-                background: #f0f0f0 !important;
-                border-radius: 20px !important;
-                font-size: 15px !important;
-            }
-            
-            /* NAVIGAZIONE INFERIORE */
-            .whatsapp-tabs {
-                display: flex !important;
-                background: white !important;
-                border-top: 1px solid #eee !important;
-                height: 60px !important;
-            }
-            
-            .whatsapp-tab {
-                flex: 1 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: center !important;
-                justify-content: center !important;
-                font-size: 12px !important;
-                color: #666 !important;
-                cursor: pointer !important;
-                transition: color 0.2s !important;
-            }
-            
-            .whatsapp-tab.active {
-                color: #075e54 !important;
-            }
-            
-            .whatsapp-tab-icon {
-                font-size: 20px !important;
-                margin-bottom: 4px !important;
-            }
-            
             /* CHAT VIEW */
-            .whatsapp-chat-view {
-                position: fixed !important;
-                top: 0 !important;
+            .ts-chat-container,
+            .chat-container {
+                position: absolute !important;
+                top: 56px !important;
                 left: 0 !important;
                 right: 0 !important;
-                bottom: 0 !important;
-                background: white !important;
-                z-index: 20000 !important;
-                display: none !important;
-                flex-direction: column !important;
-            }
-            
-            .whatsapp-chat-header {
-                background: #075e54 !important;
-                color: white !important;
-                padding: 15px 20px !important;
-                height: 70px !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 15px !important;
-            }
-            
-            .whatsapp-back-button {
-                font-size: 20px !important;
-                cursor: pointer !important;
-            }
-            
-            .whatsapp-chat-messages {
-                flex: 1 !important;
+                bottom: 76px !important;
+                width: 100% !important;
+                height: auto !important;
+                padding: 16px !important;
                 overflow-y: auto !important;
-                padding: 20px !important;
-                background: #e5ddd5 !important;
-                background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" opacity="0.05"><path fill="%23075e54" d="M0 0h100v100H0z"/></svg>') !important;
+                background: white !important;
             }
             
-            .whatsapp-message {
-                max-width: 70% !important;
-                margin-bottom: 15px !important;
+            /* MESSAGGI */
+            .chat-message,
+            .message-item {
+                max-width: 85% !important;
+                margin: 8px 0 !important;
                 padding: 12px 16px !important;
                 border-radius: 8px !important;
-                position: relative !important;
                 word-wrap: break-word !important;
             }
             
-            .whatsapp-message.received {
-                background: white !important;
-                border-top-left-radius: 2px !important;
-                align-self: flex-start !important;
+            .chat-message.received,
+            .message-item.received {
+                background: #f3f2f1 !important;
+                margin-right: auto !important;
             }
             
-            .whatsapp-message.sent {
-                background: #dcf8c6 !important;
-                border-top-right-radius: 2px !important;
-                align-self: flex-end !important;
+            .chat-message.sent,
+            .message-item.sent {
+                background: #e1edf7 !important;
                 margin-left: auto !important;
             }
             
-            .whatsapp-input-area {
+            /* INPUT MESSAGGI */
+            .ts-message-compose-box,
+            .compose-box {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 68px !important;
+                right: 0 !important;
+                width: calc(100vw - 68px) !important;
+                height: 76px !important;
                 background: white !important;
-                padding: 15px 20px !important;
-                border-top: 1px solid #eee !important;
+                border-top: 1px solid #e1dfdd !important;
+                padding: 12px 16px !important;
+                z-index: 1000 !important;
                 display: flex !important;
                 align-items: center !important;
-                gap: 15px !important;
+                gap: 12px !important;
             }
             
-            .whatsapp-input {
+            /* TEXTAREA */
+            textarea,
+            [role="textbox"] {
                 flex: 1 !important;
-                padding: 12px 20px !important;
-                border: 1px solid #ddd !important;
-                border-radius: 20px !important;
+                min-height: 52px !important;
+                max-height: 100px !important;
+                padding: 12px 16px !important;
+                border: 1px solid #e1dfdd !important;
+                border-radius: 4px !important;
                 font-size: 15px !important;
                 resize: none !important;
-                max-height: 100px !important;
+                font-family: inherit !important;
             }
             
-            .whatsapp-send-button {
-                background: #075e54 !important;
+            /* BOTTONI */
+            button,
+            .ts-btn {
+                min-height: 44px !important;
+                min-width: 44px !important;
+                padding: 8px 12px !important;
+                border-radius: 4px !important;
+                font-size: 14px !important;
+                border: 1px solid transparent !important;
+                background: transparent !important;
+                color: #323130 !important;
+            }
+            
+            button:hover,
+            .ts-btn:hover {
+                background: #f3f2f1 !important;
+            }
+            
+            /* BOTTONE INVIO */
+            .ts-send-button {
+                background: #6264a7 !important;
                 color: white !important;
                 border: none !important;
-                width: 44px !important;
-                height: 44px !important;
+            }
+            
+            .ts-send-button:hover {
+                background: #585a96 !important;
+            }
+            
+            /* ICONE */
+            .ts-icon,
+            svg {
+                width: 20px !important;
+                height: 20px !important;
+                fill: #605e5c !important;
+            }
+            
+            /* BARRA LATERALE ICONE */
+            .app-bar .ts-icon,
+            .LeftRail svg {
+                width: 24px !important;
+                height: 24px !important;
+            }
+            
+            /* BOTTONE CHAT RAPIDA */
+            .teams-quick-action {
+                position: fixed !important;
+                right: 20px !important;
+                bottom: 90px !important;
+                width: 56px !important;
+                height: 56px !important;
                 border-radius: 50% !important;
+                background: #6264a7 !important;
+                color: white !important;
+                border: none !important;
+                z-index: 9999 !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: center !important;
+                font-size: 20px !important;
                 cursor: pointer !important;
-                font-size: 18px !important;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
             }
             
-            /* SOVRASCRIVI COMPLETAMENTE IL LAYOUT TEAMS */
-            .app-main,
-            .main-content,
-            .ts-chat-container,
-            .chat-container {
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: transparent !important;
+            /* STATO ONLINE/OFFLINE */
+            .ts-presence,
+            [class*="presence"] {
+                width: 12px !important;
+                height: 12px !important;
+                border: 2px solid white !important;
+                border-radius: 50% !important;
+                position: absolute !important;
+                bottom: 2px !important;
+                right: 2px !important;
             }
             
-            /* NASCONDI TUTTI GLI ELEMENTI NATIVI TEAMS */
-            .ts-chat-list,
-            .chat-list,
-            .ts-message-compose-box,
-            .ts-chat-header {
+            .ts-presence-available {
+                background: #6bb700 !important;
+            }
+            
+            .ts-presence-away {
+                background: #ffaa44 !important;
+            }
+            
+            /* SCROLLBAR */
+            ::-webkit-scrollbar {
+                width: 6px !important;
+            }
+            
+            ::-webkit-scrollbar-thumb {
+                background: #c8c6c4 !important;
+                border-radius: 3px !important;
+            }
+            
+            /* RESPONSIVE */
+            @media (max-width: 480px) {
+                .app-bar, .LeftRail {
+                    width: 60px !important;
+                }
+                
+                .app-main {
+                    margin-left: 60px !important;
+                    width: calc(100vw - 60px) !important;
+                }
+                
+                .ts-message-compose-box {
+                    left: 60px !important;
+                    width: calc(100vw - 60px) !important;
+                }
+                
+                .ts-avatar {
+                    width: 44px !important;
+                    height: 44px !important;
+                }
+            }
+            
+            /* CORREZIONI SPECIFICHE */
+            .ts-chat-list-item.unread {
+                background: #f1f1f1 !important;
+            }
+            
+            .ts-chat-list-item.unread .ts-chat-list-item-title {
+                font-weight: 700 !important;
+            }
+            
+            .ts-chat-list-item.selected {
+                background: #e1edf7 !important;
+            }
+            
+            /* NASCONDI ELEMENTI NON NECESSARI */
+            .ts-app-header,
+            .teamHeader,
+            .command-bar {
                 display: none !important;
             }
         `;
         document.head.appendChild(style);
         
-        // Crea il layout WhatsApp
-        function createWhatsAppLayout() {
-            if (document.querySelector('.whatsapp-layout')) return;
-            
-            const whatsappLayout = document.createElement('div');
-            whatsappLayout.className = 'whatsapp-layout';
-            whatsappLayout.innerHTML = `
-                <!-- Header -->
-                <div class="whatsapp-header">
-                    <div style="display: flex; align-items: center;">
-                        <div class="whatsapp-avatar">T</div>
-                        <div class="whatsapp-header-title">Teams</div>
-                    </div>
-                    <div class="whatsapp-header-icons">
-                        <span>🔍</span>
-                        <span>⋮</span>
-                    </div>
-                </div>
-                
-                <!-- Barra di ricerca -->
-                <div class="whatsapp-search">
-                    <input type="text" class="whatsapp-search-input" placeholder="Cerca o inizia una nuova chat">
-                </div>
-                
-                <!-- Lista chat -->
-                <div class="whatsapp-chat-list" id="whatsappChatList">
-                    <!-- Le chat verranno aggiunte qui dinamicamente -->
-                </div>
-                
-                <!-- Navigazione inferiore -->
-                <div class="whatsapp-tabs">
-                    <div class="whatsapp-tab active">
-                        <div class="whatsapp-tab-icon">💬</div>
-                        <div>Chat</div>
-                    </div>
-                    <div class="whatsapp-tab">
-                        <div class="whatsapp-tab-icon">👥</div>
-                        <div>Team</div>
-                    </div>
-                    <div class="whatsapp-tab">
-                        <div class="whatsapp-tab-icon">📞</div>
-                        <div>Chiamate</div>
-                    </div>
-                    <div class="whatsapp-tab">
-                        <div class="whatsapp-tab-icon">⚙️</div>
-                        <div>Impostazioni</div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(whatsappLayout);
-            
-            // Crea la view della chat (nascosta inizialmente)
-            const chatView = document.createElement('div');
-            chatView.className = 'whatsapp-chat-view';
-            chatView.innerHTML = `
-                <div class="whatsapp-chat-header">
-                    <div class="whatsapp-back-button">←</div>
-                    <div class="whatsapp-avatar" id="chatAvatar">U</div>
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; font-size: 17px;" id="chatContactName">Contatto</div>
-                        <div style="font-size: 13px; opacity: 0.8;" id="chatStatus">Online</div>
-                    </div>
-                    <div style="font-size: 20px;">📞</div>
-                    <div style="font-size: 20px; margin-left: 15px;">⋮</div>
-                </div>
-                
-                <div class="whatsapp-chat-messages" id="whatsappMessages">
-                    <!-- I messaggi verranno aggiunti qui -->
-                </div>
-                
-                <div class="whatsapp-input-area">
-                    <div style="font-size: 20px;">😊</div>
-                    <div style="font-size: 20px;">📎</div>
-                    <textarea class="whatsapp-input" placeholder="Scrivi un messaggio..." rows="1"></textarea>
-                    <div class="whatsapp-send-button">➤</div>
-                </div>
-            `;
-            
-            document.body.appendChild(chatView);
-            
-            // Aggiungi funzionalità
-            setupWhatsAppFunctionality();
-        }
+        // Aggiungi bottone azione rapida
+        const quickAction = document.createElement('button');
+        quickAction.className = 'teams-quick-action';
+        quickAction.innerHTML = '💬';
+        quickAction.title = 'Nuovo messaggio';
         
-        function setupWhatsAppFunctionality() {
-            const backButton = document.querySelector('.whatsapp-back-button');
-            const chatView = document.querySelector('.whatsapp-chat-view');
-            const chatList = document.querySelector('.whatsapp-chat-list');
+        quickAction.addEventListener('click', function() {
+            // Focus sull'input di ricerca o nuovo messaggio
+            const searchInput = document.querySelector('input[type="search"], input[placeholder*="search"], input[placeholder*="cerca"]');
+            const messageInput = document.querySelector('textarea, [role="textbox"]');
             
-            // Torna indietro dalla chat
-            backButton.addEventListener('click', function() {
-                chatView.style.display = 'none';
+            if (searchInput) {
+                searchInput.focus();
+            } else if (messageInput) {
+                messageInput.focus();
+            }
+        });
+        
+        document.body.appendChild(quickAction);
+        
+        // Funzione per migliorare le immagini profilo
+        function enhanceProfileImages() {
+            const avatars = document.querySelectorAll('.ts-avatar, [class*="avatar"]');
+            avatars.forEach(avatar => {
+                // Assicurati che le immagini siano visibili
+                avatar.style.display = 'flex';
+                avatar.style.visibility = 'visible';
+                avatar.style.opacity = '1';
+                
+                // Se è un'immagine, assicurati che sia caricata correttamente
+                const img = avatar.querySelector('img');
+                if (img) {
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.borderRadius = '50%';
+                    img.style.objectFit = 'cover';
+                }
             });
             
-            // Estrai le chat da Teams e popola la lista
-            function populateChats() {
-                const chatListContainer = document.getElementById('whatsappChatList');
-                chatListContainer.innerHTML = '';
-                
-                // Cerca gli elementi chat di Teams
-                const teamsChatItems = document.querySelectorAll('[data-tid*="chat-list-item"], .ts-chat-list-item, [role*="listitem"]');
-                
-                teamsChatItems.forEach((item, index) => {
-                    if (index > 20) return; // Limita a 20 chat
-                    
-                    const chatItem = document.createElement('div');
-                    chatItem.className = 'whatsapp-chat-item';
-                    
-                    // Prova a estrarre il nome della chat
-                    let chatName = 'Contatto ' + (index + 1);
-                    let preview = 'Ultimo messaggio...';
-                    let time = '12:00';
-                    
-                    const nameElement = item.querySelector('[class*="name"], [class*="title"], [data-tid*="name"]');
-                    if (nameElement) chatName = nameElement.textContent || chatName;
-                    
-                    const previewElement = item.querySelector('[class*="preview"], [class*="message"], [class*="content"]');
-                    if (previewElement) preview = previewElement.textContent || preview;
-                    
-                    const timeElement = item.querySelector('[class*="time"], [class*="timestamp"]');
-                    if (timeElement) time = timeElement.textContent || time;
-                    
-                    // Crea avatar con iniziale
-                    const initial = chatName.charAt(0).toUpperCase();
-                    
-                    chatItem.innerHTML = `
-                        <div class="whatsapp-avatar">${initial}</div>
-                        <div class="whatsapp-chat-info">
-                            <div class="whatsapp-chat-name">${chatName}</div>
-                            <div class="whatsapp-chat-preview">${preview}</div>
-                        </div>
-                        <div class="whatsapp-chat-time">${time}</div>
-                    `;
-                    
-                    chatItem.addEventListener('click', function() {
-                        openChat(chatName, initial);
-                    });
-                    
-                    chatListContainer.appendChild(chatItem);
-                });
-                
-                // Se non trova chat Teams, crea chat di esempio
-                if (teamsChatItems.length === 0) {
-                    const exampleChats = [
-                        { name: 'Giuseppe Gargiulo', preview: 'Calcolo Orario Giornaliero', time: '10:32' },
-                        { name: 'Riccardo Cassese', preview: 'Ciao Michele ti chiamo tra poco', time: '09:15' },
-                        { name: 'Giampiero Grandi', preview: 'grazie per l\'aiuto', time: 'ieri' },
-                        { name: 'Nuzzo Giovanni', preview: 'se puoi chiamarmi un attimo', time: 'ieri' }
-                    ];
-                    
-                    exampleChats.forEach(chat => {
-                        const chatItem = document.createElement('div');
-                        chatItem.className = 'whatsapp-chat-item';
-                        chatItem.innerHTML = `
-                            <div class="whatsapp-avatar">${chat.name.charAt(0)}</div>
-                            <div class="whatsapp-chat-info">
-                                <div class="whatsapp-chat-name">${chat.name}</div>
-                                <div class="whatsapp-chat-preview">${chat.preview}</div>
-                            </div>
-                            <div class="whatsapp-chat-time">${chat.time}</div>
-                        `;
-                        
-                        chatItem.addEventListener('click', function() {
-                            openChat(chat.name, chat.name.charAt(0));
-                        });
-                        
-                        chatListContainer.appendChild(chatItem);
-                    });
-                }
-            }
-            
-            function openChat(contactName, initial) {
-                document.getElementById('chatContactName').textContent = contactName;
-                document.getElementById('chatAvatar').textContent = initial;
-                
-                const messagesContainer = document.getElementById('whatsappMessages');
-                messagesContainer.innerHTML = '';
-                
-                // Aggiungi messaggi di esempio
-                const exampleMessages = [
-                    { text: 'Ciao! Come stai?', sent: false },
-                    { text: 'Tutto bene, grazie! E tu?', sent: true },
-                    { text: 'Anche io bene, grazie per avermi richiamato', sent: false },
-                    { text: 'Di nulla! Quando vuoi ci sentiamo', sent: true }
-                ];
-                
-                exampleMessages.forEach(msg => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `whatsapp-message ${msg.sent ? 'sent' : 'received'}`;
-                    messageDiv.textContent = msg.text;
-                    messagesContainer.appendChild(messageDiv);
-                });
-                
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                document.querySelector('.whatsapp-chat-view').style.display = 'flex';
-            }
-            
-            // Popola le chat ogni 3 secondi
-            setTimeout(populateChats, 1000);
-            setInterval(populateChats, 3000);
+            // Correggi il layout delle chat
+            const chatItems = document.querySelectorAll('.ts-chat-list-item');
+            chatItems.forEach(item => {
+                item.style.width = '100%';
+                item.style.margin = '0';
+                item.style.padding = '12px 16px';
+            });
         }
         
-        // Inizializza il layout
-        setTimeout(createWhatsAppLayout, 2000);
+        // Applica miglioramenti
+        setTimeout(enhanceProfileImages, 1000);
+        setInterval(enhanceProfileImages, 3000);
         
-        console.log('💚 Teams WhatsApp Style - Attivo!');
+        // Auto-scroll per nuovi messaggi
+        setInterval(function() {
+            const activeChat = document.querySelector('.ts-chat-container, .chat-container');
+            if (activeChat) {
+                const isNearBottom = activeChat.scrollHeight - activeChat.clientHeight - activeChat.scrollTop < 100;
+                if (isNearBottom) {
+                    activeChat.scrollTop = activeChat.scrollHeight;
+                }
+            }
+        }, 2000);
+        
+        console.log('🎯 Teams Mobile Optimized - Attivo con colori originali!');
     });
 
 })();
