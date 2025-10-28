@@ -1,588 +1,794 @@
 // ==UserScript==
-// @name         Teams Mobile Ultimate
+// @name         Teams Mobile Ultimate Pro
 // @namespace    http://tampermonkey.net/
-// @version      6.0
-// @description  Teams mobile ottimizzato per touch, chiamate e video
+// @version      7.0
+// @description  Teams mobile ottimizzato con librerie JS e best practices
 // @author       You
 // @match        https://teams.microsoft.com/*
 // @match        https://*.teams.microsoft.com/*
-// @grant        none
+// @require      https://unpkg.com/react@18/umd/react.production.min.js
+// @require      https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
+// @require      https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js
+// @require      https://unpkg.com/immer@9.0.19/dist/immer.umd.production.min.js
+// @require      https://unpkg.com/axios@1.4.0/dist/axios.min.js
+// @resource     toastCSS https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.css
+// @grant        GM_addStyle
+// @grant        GM_getResourceText
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_notification
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
-    
-    window.addEventListener('load', function() {
+
+    // === CONFIGURAZIONE E CONSTANTI ===
+    const CONFIG = {
+        SIDEBAR_WIDTH: '68px',
+        MAIN_CONTENT_MARGIN: '68px',
+        TOUCH_TARGET_SIZE: '44px',
+        AVATAR_SIZE: '48px',
+        STATUS_ICON_SIZE: '10px',
+        MOBILE_BREAKPOINT: '480px',
+        ANIMATION_DURATION: '200ms'
+    };
+
+    // === INIZIALIZZAZIONE LIBRERIE ===
+    const _ = window._;
+    const axios = window.axios;
+    const produce = window.immer.produce;
+
+    // Carica CSS Toastify
+    const toastifyCSS = GM_getResourceText('toastCSS');
+    GM_addStyle(toastifyCSS);
+
+    // === UTILITY FUNCTIONS ===
+    const Utils = {
+        // Debounce per performance
+        debounce: (func, wait) => _.debounce(func, wait),
         
-        const style = document.createElement('style');
-        style.textContent = `
-            /* === LAYOUT BASE MOBILE === */
-            html, body {
-                width: 100vw !important;
-                height: 100vh !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: hidden !important;
-                touch-action: manipulation !important;
-                -webkit-tap-highlight-color: transparent !important;
-                -webkit-touch-callout: none !important;
-                -webkit-user-select: none !important;
-                user-select: none !important;
+        // Deep clone per stato
+        clone: (obj) => produce(obj, draft => draft),
+        
+        // Local storage con fallback
+        storage: {
+            set: (key, value) => {
+                try {
+                    GM_setValue(key, JSON.stringify(value));
+                } catch (e) {
+                    console.warn('Storage set failed:', e);
+                }
+            },
+            get: (key, defaultValue = null) => {
+                try {
+                    const value = GM_getValue(key);
+                    return value ? JSON.parse(value) : defaultValue;
+                } catch (e) {
+                    console.warn('Storage get failed:', e);
+                    return defaultValue;
+                }
             }
-            
-            * {
-                box-sizing: border-box !important;
+        },
+
+        // Notifiche utente
+        notify: (title, message, timeout = 3000) => {
+            GM_notification({
+                title: title,
+                text: message,
+                timeout: timeout,
+                silent: true
+            });
+        },
+
+        // Rilevamento dispositivo e orientamento
+        device: {
+            isMobile: () => window.innerWidth <= 768,
+            isLandscape: () => window.innerWidth > window.innerHeight,
+            getTouchPoints: () => navigator.maxTouchPoints || 0
+        }
+    };
+
+    // === GESTIONE STATO APPLICAZIONE ===
+    const AppState = (function() {
+        let state = {
+            ui: {
+                sidebarCollapsed: false,
+                currentView: 'chat',
+                unreadCount: 0,
+                theme: 'light'
+            },
+            user: {
+                status: 'available',
+                lastActive: Date.now()
+            },
+            calls: {
+                activeCall: null,
+                muted: false,
+                videoOn: false
+            },
+            settings: Utils.storage.get('teams_mobile_settings', {
+                autoScroll: true,
+                largeTouchTargets: true,
+                optimizedCalls: true,
+                showStatusIcons: true
+            })
+        };
+
+        return {
+            get: (path) => _.get(state, path),
+            set: (path, value) => {
+                state = produce(state, draft => {
+                    _.set(draft, path, value);
+                });
+                
+                // Salva settings su cambiamento
+                if (path.startsWith('settings')) {
+                    Utils.storage.set('teams_mobile_settings', state.settings);
+                }
+                
+                return state;
+            },
+            subscribe: (path, callback) => {
+                // Semplice implementazione observer pattern
+                const checkInterval = setInterval(() => {
+                    const currentValue = _.get(state, path);
+                    if (currentValue !== callback.lastValue) {
+                        callback.lastValue = Utils.clone(currentValue);
+                        callback(currentValue);
+                    }
+                }, 100);
+                
+                return () => clearInterval(checkInterval);
             }
+        };
+    })();
+
+    // === COMPONENTI REACT PER UI AVANZATA ===
+    const ReactComponents = {
+        // Quick Actions Menu
+        QuickActionsMenu: function() {
+            const [isOpen, setIsOpen] = React.useState(false);
             
-            /* === BARRA LATERALE COMPATTA === */
+            const actions = [
+                { icon: '💬', label: 'Nuova Chat', action: () => this.openNewChat() },
+                { icon: '📞', label: 'Nuova Chiamata', action: () => this.startNewCall() },
+                { icon: '👥', label: 'Nuovo Gruppo', action: () => this.createGroup() },
+                { icon: '📎', label: 'Condividi File', action: () => this.shareFile() }
+            ];
+
+            return React.createElement('div', { className: 'quick-actions-menu' },
+                React.createElement('button', {
+                    className: `quick-actions-toggle ${isOpen ? 'open' : ''}`,
+                    onClick: () => setIsOpen(!isOpen)
+                }, '⚙️'),
+                isOpen && React.createElement('div', { className: 'quick-actions-dropdown' },
+                    actions.map((action, index) => 
+                        React.createElement('button', {
+                            key: index,
+                            className: 'quick-action-item',
+                            onClick: action.action
+                        }, 
+                        React.createElement('span', { className: 'action-icon' }, action.icon),
+                        React.createElement('span', { className: 'action-label' }, action.label)
+                        )
+                    )
+                )
+            );
+        },
+
+        // Status Indicator
+        StatusIndicator: function({ status, size = 'medium' }) {
+            const statusConfig = {
+                available: { color: '#6bb700', label: 'Disponibile' },
+                away: { color: '#ffaa44', label: 'Assente' },
+                busy: { color: '#d13438', label: 'Occupato' },
+                offline: { color: '#8a8886', label: 'Offline' }
+            };
+
+            const config = statusConfig[status] || statusConfig.offline;
+            
+            return React.createElement('div', {
+                className: `status-indicator ${size}`,
+                style: { backgroundColor: config.color },
+                title: config.label
+            });
+        }
+    };
+
+    // === STILI AVANZATI CON CSS VARIABLES ===
+    const AdvancedStyles = `
+        :root {
+            --teams-primary: #6264a7;
+            --teams-secondary: #f3f2f1;
+            --teams-border: #e1dfdd;
+            --teams-text: #323130;
+            --teams-text-secondary: #605e5c;
+            --touch-target: ${CONFIG.TOUCH_TARGET_SIZE};
+            --avatar-size: ${CONFIG.AVATAR_SIZE};
+            --sidebar-width: ${CONFIG.SIDEBAR_WIDTH};
+            --animation-duration: ${CONFIG.ANIMATION_DURATION};
+        }
+
+        ${toastifyCSS}
+
+        /* === LAYOUT FONDAMENTALE === */
+        .teams-app-layout {
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            font-size: 16px !important;
+            touch-action: manipulation !important;
+        }
+
+        /* === BARRA LATERALE OTTIMIZZATA === */
+        .app-bar, .LeftRail {
+            width: var(--sidebar-width) !important;
+            min-width: var(--sidebar-width) !important;
+            max-width: var(--sidebar-width) !important;
+            height: 100vh !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            z-index: 1000 !important;
+            background: var(--teams-secondary) !important;
+            border-right: 1px solid var(--teams-border) !important;
+            padding: 16px 0 !important;
+        }
+
+        /* === CONTENUTO PRINCIPALE RESPONSIVE === */
+        .app-main {
+            margin-left: var(--sidebar-width) !important;
+            width: calc(100vw - var(--sidebar-width)) !important;
+            height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            right: 0 !important;
+            background: white !important;
+            overflow: hidden !important;
+        }
+
+        /* === AVATAR E STATO OTTIMIZZATI === */
+        .ts-avatar, [class*="avatar"] {
+            width: var(--avatar-size) !important;
+            height: var(--avatar-size) !important;
+            min-width: var(--avatar-size) !important;
+            min-height: var(--avatar-size) !important;
+            border-radius: 50% !important;
+            position: relative !important;
+            background: var(--teams-primary) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: white !important;
+            font-weight: 600 !important;
+        }
+
+        .ts-presence, [class*="presence"] {
+            width: ${CONFIG.STATUS_ICON_SIZE} !important;
+            height: ${CONFIG.STATUS_ICON_SIZE} !important;
+            border: 2px solid white !important;
+            border-radius: 50% !important;
+            position: absolute !important;
+            bottom: 2px !important;
+            right: 2px !important;
+            z-index: 10 !important;
+        }
+
+        /* === INTERFACCIA CHAT MOBILE-FIRST === */
+        .ts-chat-container, .chat-container {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 80px !important;
+            height: auto !important;
+            padding: 16px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-behavior: smooth !important;
+        }
+
+        .chat-message {
+            max-width: 85% !important;
+            margin: 12px 0 !important;
+            padding: 14px 16px !important;
+            border-radius: 18px !important;
+            word-wrap: break-word !important;
+            line-height: 1.4 !important;
+            transition: transform var(--animation-duration) ease !important;
+        }
+
+        .chat-message:active {
+            transform: scale(0.98) !important;
+        }
+
+        /* === INPUT MESSAGGI AVANZATO === */
+        .ts-message-compose-box, .compose-box {
+            position: fixed !important;
+            bottom: 10px !important;
+            left: 78px !important;
+            right: 10px !important;
+            width: calc(100vw - 88px) !important;
+            height: auto !important;
+            min-height: 64px !important;
+            background: white !important;
+            border: 1px solid var(--teams-border) !important;
+            border-radius: 24px !important;
+            z-index: 1000 !important;
+            padding: 12px 16px !important;
+            margin: 0 !important;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            backdrop-filter: blur(10px) !important;
+        }
+
+        textarea, [role="textbox"] {
+            flex: 1 !important;
+            min-height: 44px !important;
+            max-height: 120px !important;
+            padding: 12px 0 !important;
+            border: none !important;
+            background: transparent !important;
+            font-size: 16px !important;
+            line-height: 1.4 !important;
+            resize: none !important;
+            outline: none !important;
+            font-family: inherit !important;
+        }
+
+        /* === INTERFACCIA CHIAMATE OTTIMIZZATA === */
+        .call-container, .meeting-container {
+            position: fixed !important;
+            top: 0 !important;
+            left: var(--sidebar-width) !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: calc(100vw - var(--sidebar-width)) !important;
+            height: 100vh !important;
+            background: #1a1a1a !important;
+            z-index: 2000 !important;
+        }
+
+        .call-controls, .meeting-controls {
+            position: fixed !important;
+            bottom: 20px !important;
+            left: 88px !important;
+            right: 20px !important;
+            background: rgba(0,0,0,0.8) !important;
+            border-radius: 25px !important;
+            padding: 16px 20px !important;
+            z-index: 2001 !important;
+            display: flex !important;
+            justify-content: center !important;
+            gap: 16px !important;
+            backdrop-filter: blur(15px) !important;
+        }
+
+        .call-controls button {
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 50% !important;
+            border: none !important;
+            background: #505050 !important;
+            color: white !important;
+            font-size: 18px !important;
+            transition: all var(--animation-duration) ease !important;
+        }
+
+        .call-controls button:active {
+            transform: scale(0.9) !important;
+        }
+
+        /* === COMPONENTI PERSONALIZZATI === */
+        .quick-actions-menu {
+            position: fixed !important;
+            right: 20px !important;
+            bottom: 160px !important;
+            z-index: 9999 !important;
+        }
+
+        .quick-actions-toggle {
+            width: 56px !important;
+            height: 56px !important;
+            border-radius: 50% !important;
+            background: var(--teams-primary) !important;
+            color: white !important;
+            border: none !important;
+            font-size: 20px !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 20px rgba(98, 100, 167, 0.4) !important;
+            transition: transform var(--animation-duration) ease !important;
+        }
+
+        .quick-actions-toggle.open {
+            transform: rotate(45deg) !important;
+        }
+
+        .quick-actions-dropdown {
+            position: absolute !important;
+            bottom: 60px !important;
+            right: 0 !important;
+            background: white !important;
+            border-radius: 12px !important;
+            padding: 8px !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+            min-width: 180px !important;
+        }
+
+        .quick-action-item {
+            width: 100% !important;
+            padding: 12px 16px !important;
+            border: none !important;
+            background: transparent !important;
+            text-align: left !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+        }
+
+        .quick-action-item:hover {
+            background: var(--teams-secondary) !important;
+        }
+
+        .action-icon {
+            font-size: 18px !important;
+        }
+
+        .action-label {
+            font-size: 14px !important;
+            color: var(--teams-text) !important;
+        }
+
+        /* === STATUS INDICATOR === */
+        .status-indicator {
+            border-radius: 50% !important;
+            border: 2px solid white !important;
+        }
+
+        .status-indicator.small {
+            width: 8px !important;
+            height: 8px !important;
+        }
+
+        .status-indicator.medium {
+            width: 10px !important;
+            height: 10px !important;
+        }
+
+        .status-indicator.large {
+            width: 12px !important;
+            height: 12px !important;
+        }
+
+        /* === TOUCH OPTIMIZATIONS === */
+        button, .ts-btn, [role="button"] {
+            min-width: var(--touch-target) !important;
+            min-height: var(--touch-target) !important;
+            padding: 12px !important;
+            border-radius: 8px !important;
+            font-size: 16px !important;
+            touch-action: manipulation !important;
+            transition: all var(--animation-duration) ease !important;
+        }
+
+        button:active, .ts-btn:active {
+            transform: scale(0.95) !important;
+            opacity: 0.8 !important;
+        }
+
+        /* === RESPONSIVE DESIGN === */
+        @media (max-width: ${CONFIG.MOBILE_BREAKPOINT}) {
             .app-bar, .LeftRail {
                 width: 60px !important;
-                min-width: 60px !important;
-                max-width: 60px !important;
-                height: 100vh !important;
-                position: fixed !important;
-                left: 0 !important;
-                top: 0 !important;
-                z-index: 1000 !important;
-                padding: 10px 0 !important;
             }
             
-            /* === CONTENUTO PRINCIPALE === */
             .app-main {
                 margin-left: 60px !important;
                 width: calc(100vw - 60px) !important;
-                height: 100vh !important;
-                position: fixed !important;
-                top: 0 !important;
-                right: 0 !important;
-                background: white !important;
-                overflow: hidden !important;
             }
             
-            /* === AVATAR E ICONE STATO === */
-            .ts-avatar,
-            [class*="avatar"] {
-                width: 44px !important;
-                height: 44px !important;
-                min-width: 44px !important;
-                min-height: 44px !important;
-                border-radius: 50% !important;
-                position: relative !important;
-            }
-            
-            /* Icone stato piccole e discrete */
-            .ts-presence,
-            [class*="presence"] {
-                width: 10px !important;
-                height: 10px !important;
-                min-width: 10px !important;
-                min-height: 10px !important;
-                border: 2px solid white !important;
-                border-radius: 50% !important;
-                position: absolute !important;
-                bottom: 2px !important;
-                right: 2px !important;
-                z-index: 10 !important;
-            }
-            
-            /* === INTERFACCIA CHAT OTTIMIZZATA === */
-            .ts-chat-container,
-            .chat-container {
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 80px !important;
-                height: auto !important;
-                padding: 15px !important;
-                overflow-y: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-                scroll-behavior: smooth !important;
-            }
-            
-            /* Messaggi touch-friendly */
-            .chat-message {
-                max-width: 85% !important;
-                margin: 10px 0 !important;
-                padding: 14px 16px !important;
-                border-radius: 18px !important;
-                word-wrap: break-word !important;
-                touch-action: pan-y !important;
-            }
-            
-            .chat-message.received {
-                background: #f3f2f1 !important;
-                margin-right: auto !important;
-            }
-            
-            .chat-message.sent {
-                background: #e1edf7 !important;
-                margin-left: auto !important;
-            }
-            
-            /* === INPUT MESSAGGI PER MOBILE === */
-            .ts-message-compose-box,
-            .compose-box {
-                position: fixed !important;
-                bottom: 10px !important;
+            .ts-message-compose-box {
                 left: 70px !important;
-                right: 10px !important;
                 width: calc(100vw - 80px) !important;
-                height: auto !important;
-                min-height: 60px !important;
-                background: white !important;
-                border: 1px solid #e1e1e1 !important;
-                border-radius: 25px !important;
-                z-index: 1000 !important;
-                padding: 10px 15px !important;
-                margin: 0 !important;
-                box-shadow: 0 -4px 20px rgba(0,0,0,0.1) !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 12px !important;
             }
             
-            /* Textarea ottimizzata per mobile */
-            textarea,
-            [role="textbox"] {
-                flex: 1 !important;
-                min-height: 44px !important;
-                max-height: 120px !important;
-                padding: 12px 0 !important;
-                border: none !important;
-                background: transparent !important;
-                font-size: 16px !important;
-                line-height: 1.4 !important;
-                resize: none !important;
-                outline: none !important;
-                font-family: inherit !important;
-                margin: 0 !important;
-                -webkit-user-select: text !important;
-                user-select: text !important;
+            .call-controls {
+                left: 80px !important;
+                right: 15px !important;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            .ts-chat-container {
+                bottom: 70px !important;
             }
             
-            /* Bottoni input grandi per touch */
-            .ts-message-compose-box button,
-            .compose-box button {
-                min-width: 44px !important;
-                min-height: 44px !important;
-                padding: 10px !important;
-                background: transparent !important;
-                border: none !important;
-                border-radius: 50% !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                touch-action: manipulation !important;
+            .ts-message-compose-box {
+                min-height: 56px !important;
             }
             
-            /* Bottone invio prominente */
-            .ts-send-button {
-                background: #6264a7 !important;
-                color: white !important;
-                box-shadow: 0 2px 8px rgba(98, 100, 167, 0.3) !important;
-            }
-            
-            /* === INTERFACCIA CHIAMATE OTTIMIZZATA === */
-            
-            /* Container chiamata */
-            .call-container,
-            .meeting-container,
-            [class*="call"] {
-                position: fixed !important;
-                top: 0 !important;
-                left: 60px !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                width: calc(100vw - 60px) !important;
-                height: 100vh !important;
-                background: #1a1a1a !important;
-                z-index: 2000 !important;
-            }
-            
-            /* Video partecipante principale */
-            .video-container,
-            [class*="video"] {
-                width: 100% !important;
-                height: 100% !important;
-                position: relative !important;
-            }
-            
-            .video-frame,
-            [class*="video-frame"] {
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
-            }
-            
-            /* Controlli chiamata in basso */
-            .call-controls,
-            .meeting-controls,
-            [class*="control-bar"] {
-                position: fixed !important;
-                bottom: 20px !important;
-                left: 70px !important;
-                right: 20px !important;
-                background: rgba(0,0,0,0.7) !important;
-                border-radius: 25px !important;
-                padding: 15px 20px !important;
-                z-index: 2001 !important;
-                display: flex !important;
-                justify-content: center !important;
-                gap: 15px !important;
-                backdrop-filter: blur(10px) !important;
-            }
-            
-            /* Bottoni controlli chiamata grandi */
-            .call-controls button,
-            .meeting-controls button {
-                width: 60px !important;
-                height: 60px !important;
-                min-width: 60px !important;
-                min-height: 60px !important;
-                border-radius: 50% !important;
-                border: none !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                font-size: 20px !important;
-                background: #505050 !important;
-                color: white !important;
-                touch-action: manipulation !important;
-                transition: all 0.2s !important;
-            }
-            
-            /* Bottone chiamata attiva (verde) */
-            .call-controls .ts-call-active,
-            [class*="active"] {
-                background: #6bb700 !important;
-            }
-            
-            /* Bottone chiamata finisci (rosso) */
-            .call-controls .ts-call-end,
-            [class*="end"] {
-                background: #d13438 !important;
-            }
-            
-            /* Bottone microfono/camera toggle */
-            .call-controls .ts-call-toggle {
-                background: #505050 !important;
-            }
-            
-            .call-controls .ts-call-toggle.muted {
-                background: #d13438 !important;
-            }
-            
-            /* Partecipanti piccoli in overlay */
-            .participant-grid,
-            [class*="participant"] {
-                position: absolute !important;
-                top: 20px !important;
-                right: 20px !important;
-                width: 120px !important;
-                max-width: 120px !important;
-                background: rgba(0,0,0,0.6) !important;
-                border-radius: 12px !important;
-                padding: 10px !important;
-                z-index: 2002 !important;
-            }
-            
-            .participant-video {
-                width: 100px !important;
-                height: 75px !important;
-                border-radius: 8px !important;
-                object-fit: cover !important;
-                margin-bottom: 5px !important;
-            }
-            
-            /* Info chiamata in alto */
-            .call-header,
-            [class*="call-header"] {
-                position: absolute !important;
-                top: 20px !important;
-                left: 20px !important;
-                right: 150px !important;
-                background: rgba(0,0,0,0.6) !important;
-                color: white !important;
+            .call-controls {
+                bottom: 15px !important;
                 padding: 12px 16px !important;
-                border-radius: 12px !important;
-                z-index: 2002 !important;
-                backdrop-filter: blur(10px) !important;
             }
             
-            /* === MIGLIORAMENTI TOUCH === */
-            
-            /* Bottoni generali grandi per touch */
-            button, .ts-btn, [role="button"] {
-                min-width: 44px !important;
-                min-height: 44px !important;
-                padding: 12px !important;
-                border-radius: 8px !important;
-                font-size: 16px !important;
-                touch-action: manipulation !important;
-                transition: all 0.1s !important;
+            .call-controls button {
+                width: 48px !important;
+                height: 48px !important;
             }
-            
-            /* Effetto pressione per touch */
-            button:active, .ts-btn:active {
-                transform: scale(0.95) !important;
-                opacity: 0.8 !important;
+        }
+
+        /* === ACCESSIBILITY === */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
             }
-            
-            /* Lista chat touch-friendly */
-            .ts-chat-list-item,
-            .chat-list-item {
-                padding: 16px 12px !important;
-                min-height: 72px !important;
-                border-bottom: 1px solid #f0f0f0 !important;
-                touch-action: manipulation !important;
+        }
+
+        /* === DARK MODE SUPPORT === */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --teams-secondary: #2d2c2c;
+                --teams-border: #3b3a39;
+                --teams-text: #ffffff;
+                --teams-text-secondary: #a19f9d;
             }
-            
-            .ts-chat-list-item:active {
-                background: #f5f5f5 !important;
-            }
-            
-            /* Scroll ottimizzato per touch */
-            .ts-chat-list,
-            .chat-list {
-                -webkit-overflow-scrolling: touch !important;
-                scroll-behavior: smooth !important;
-            }
-            
-            /* === BOTTONI AZIONE RAPIDA === */
-            .mobile-call-btn {
-                position: fixed !important;
-                right: 20px !important;
-                bottom: 160px !important;
-                width: 56px !important;
-                height: 56px !important;
-                border-radius: 50% !important;
-                background: #6bb700 !important;
-                color: white !important;
-                border: none !important;
-                z-index: 9999 !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                font-size: 20px !important;
-                cursor: pointer !important;
-                box-shadow: 0 4px 20px rgba(107, 183, 0, 0.4) !important;
-                touch-action: manipulation !important;
-            }
-            
-            .mobile-chat-btn {
-                position: fixed !important;
-                right: 20px !important;
-                bottom: 90px !important;
-                width: 56px !important;
-                height: 56px !important;
-                border-radius: 50% !important;
-                background: #6264a7 !important;
-                color: white !important;
-                border: none !important;
-                z-index: 9999 !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                font-size: 20px !important;
-                cursor: pointer !important;
-                box-shadow: 0 4px 20px rgba(98, 100, 167, 0.4) !important;
-                touch-action: manipulation !important;
-            }
-            
-            /* === HEADER COMPATTO === */
-            .app-header,
-            .ts-chat-header {
-                height: 50px !important;
-                min-height: 50px !important;
-                padding: 8px 15px !important;
-                position: relative !important;
-                z-index: 900 !important;
-            }
-            
-            /* === RESPONSIVE PER SCHERMI PICCOLI === */
-            @media (max-width: 480px) {
-                .app-bar, .LeftRail {
-                    width: 55px !important;
-                }
-                
-                .app-main {
-                    margin-left: 55px !important;
-                    width: calc(100vw - 55px) !important;
-                }
-                
-                .ts-message-compose-box {
-                    left: 65px !important;
-                    width: calc(100vw - 75px) !important;
-                }
-                
-                .call-container {
-                    left: 55px !important;
-                    width: calc(100vw - 55px) !important;
-                }
-                
-                .call-controls {
-                    left: 65px !important;
-                    right: 15px !important;
-                    padding: 12px 15px !important;
-                }
-                
-                .call-controls button {
-                    width: 55px !important;
-                    height: 55px !important;
-                }
-                
-                .participant-grid {
-                    width: 100px !important;
-                    right: 15px !important;
-                }
-                
-                .participant-video {
-                    width: 80px !important;
-                    height: 60px !important;
-                }
-            }
-            
-            /* === ORIENTAMENTO ORIZZONTALE === */
-            @media (orientation: landscape) and (max-height: 500px) {
-                .ts-chat-container {
-                    bottom: 70px !important;
-                }
-                
-                .ts-message-compose-box {
-                    height: 60px !important;
-                    min-height: 60px !important;
-                }
-                
-                .call-controls {
-                    bottom: 15px !important;
-                    padding: 10px 15px !important;
-                }
-                
-                .call-controls button {
-                    width: 50px !important;
-                    height: 50px !important;
-                }
-            }
-            
-            /* === ANIMAZIONI SMOOTH === */
-            .ts-chat-list-item,
-            .chat-message,
-            button {
-                transition: all 0.2s ease !important;
-            }
-            
-            /* === SCROLLBAR NASCOSTA === */
-            ::-webkit-scrollbar {
-                display: none !important;
-            }
-        `;
-        document.head.appendChild(style);
+        }
+
+        /* === PERFORMANCE OPTIMIZATIONS === */
+        .ts-chat-list, .chat-list {
+            content-visibility: auto !important;
+            contain-intrinsic-size: 100px !important;
+        }
+
+        /* === SCROLLBAR CUSTOM === */
+        ::-webkit-scrollbar {
+            width: 6px !important;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1 !important;
+            border-radius: 3px !important;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+    `;
+
+    // === INIEZIONE STILI ===
+    GM_addStyle(AdvancedStyles);
+
+    // === GESTIONE PERFORMANCE ===
+    const PerformanceManager = {
+        observers: [],
         
-        // === FUNZIONALITÀ AVANZATE ===
-        
-        // Bottone chat rapida
-        const chatBtn = document.createElement('button');
-        chatBtn.className = 'mobile-chat-btn';
-        chatBtn.innerHTML = '💬';
-        chatBtn.title = 'Nuovo messaggio';
-        
-        chatBtn.addEventListener('click', function() {
-            const messageInput = document.querySelector('textarea, [role="textbox"]');
-            if (messageInput) {
-                messageInput.focus();
-                messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        });
-        
-        // Bottone chiamata rapida
-        const callBtn = document.createElement('button');
-        callBtn.className = 'mobile-call-btn';
-        callBtn.innerHTML = '📞';
-        callBtn.title = 'Avvia chiamata';
-        
-        callBtn.addEventListener('click', function() {
-            // Cerca il bottone chiamata nella chat attiva
-            const callButtons = document.querySelectorAll('[aria-label*="chiama"], [aria-label*="call"], [title*="chiama"], [title*="call"]');
-            for (let btn of callButtons) {
-                if (btn.offsetParent !== null) {
-                    btn.click();
-                    break;
-                }
-            }
-        });
-        
-        document.body.appendChild(chatBtn);
-        document.body.appendChild(callBtn);
-        
-        // === OTTIMIZZAZIONI DYNAMICHE ===
-        
-        function optimizeTouchInterface() {
-            // Migliora tutti i bottoni per touch
-            const allButtons = document.querySelectorAll('button, [role="button"]');
-            allButtons.forEach(btn => {
-                btn.style.minHeight = '44px';
-                btn.style.minWidth = '44px';
-                btn.style.touchAction = 'manipulation';
-            });
-            
-            // Ottimizza le chiamate in corso
-            const callControls = document.querySelectorAll('.call-controls, .meeting-controls');
-            callControls.forEach(controls => {
-                controls.style.display = 'flex';
-                controls.style.justifyContent = 'center';
-                controls.style.gap = '15px';
-                
-                const callButtons = controls.querySelectorAll('button');
-                callButtons.forEach(btn => {
-                    btn.style.width = '60px';
-                    btn.style.height = '60px';
-                    btn.style.borderRadius = '50%';
+        init: function() {
+            this.setupIntersectionObserver();
+            this.setupResizeObserver();
+            this.optimizeAnimations();
+        },
+
+        setupIntersectionObserver: function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.contentVisibility = 'auto';
+                    } else {
+                        entry.target.style.contentVisibility = 'hidden';
+                    }
                 });
             });
-            
-            // Assicura che i video siano a schermo intero
-            const videoContainers = document.querySelectorAll('.video-container, [class*="video"]');
-            videoContainers.forEach(container => {
-                container.style.width = '100%';
-                container.style.height = '100%';
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const chatItems = document.querySelectorAll('.ts-chat-list-item');
+                chatItems.forEach(item => observer.observe(item));
             });
-        }
-        
-        // Migliora le icone di stato
-        function optimizeStatusIcons() {
-            const presenceIcons = document.querySelectorAll('.ts-presence, [class*="presence"]');
-            presenceIcons.forEach(icon => {
-                icon.style.width = '10px';
-                icon.style.height = '10px';
-                icon.style.border = '2px solid white';
-            });
-        }
-        
-        // Applica le ottimizzazioni
-        setTimeout(() => {
-            optimizeTouchInterface();
-            optimizeStatusIcons();
-        }, 1000);
-        
-        // Riapplica periodicamente
-        setInterval(() => {
-            optimizeTouchInterface();
-            optimizeStatusIcons();
-        }, 3000);
-        
-        // Auto-scroll per nuovi messaggi
-        setInterval(function() {
-            const activeChat = document.querySelector('.ts-chat-container, .chat-container');
-            if (activeChat) {
-                const isNearBottom = activeChat.scrollHeight - activeChat.clientHeight - activeChat.scrollTop < 100;
-                if (isNearBottom) {
-                    activeChat.scrollTop = activeChat.scrollHeight;
-                }
+
+            this.observers.push(observer);
+        },
+
+        setupResizeObserver: function() {
+            const observer = new ResizeObserver(Utils.debounce((entries) => {
+                entries.forEach(entry => {
+                    this.handleLayoutShift(entry);
+                });
+            }, 100));
+
+            const mainContent = document.querySelector('.app-main');
+            if (mainContent) {
+                observer.observe(mainContent);
             }
-        }, 2000);
+
+            this.observers.push(observer);
+        },
+
+        handleLayoutShift: function(entry) {
+            // Prevenire layout shifts
+            entry.target.style.transform = 'translateZ(0)';
+        },
+
+        optimizeAnimations: function() {
+            // Disabilita animazioni se l'utente preferisce ridotto movimento
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.documentElement.style.setProperty('--animation-duration', '1ms');
+            }
+        },
+
+        cleanup: function() {
+            this.observers.forEach(observer => observer.disconnect());
+        }
+    };
+
+    // === FEATURE MANAGER ===
+    const FeatureManager = {
+        features: [],
+
+        register: function(name, initFunc, dependencies = []) {
+            this.features.push({ name, initFunc, dependencies, initialized: false });
+        },
+
+        init: function() {
+            this.features.forEach(feature => {
+                try {
+                    if (this.checkDependencies(feature)) {
+                        feature.initFunc();
+                        feature.initialized = true;
+                        console.log(`✅ Feature initialized: ${feature.name}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Feature failed: ${feature.name}`, error);
+                }
+            });
+        },
+
+        checkDependencies: function(feature) {
+            return feature.dependencies.every(dep => 
+                this.features.find(f => f.name === dep)?.initialized
+            );
+        }
+    };
+
+    // === REGISTRAZIONE FEATURES ===
+    FeatureManager.register('PerformanceManager', () => PerformanceManager.init());
+    
+    FeatureManager.register('TouchOptimizer', () => {
+        // Ottimizzazioni touch
+        document.addEventListener('touchstart', function() {}, { passive: true });
         
-        console.log('📱 Teams Mobile Ultimate - Touch e chiamate ottimizzate!');
+        // Migliora i bottoni esistenti
+        const optimizeButtons = Utils.debounce(() => {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.style.minHeight = CONFIG.TOUCH_TARGET_SIZE;
+                btn.style.minWidth = CONFIG.TOUCH_TARGET_SIZE;
+            });
+        }, 500);
+        
+        optimizeButtons();
+        setInterval(optimizeButtons, 3000);
+    }, ['PerformanceManager']);
+
+    FeatureManager.register('ChatEnhancer', () => {
+        let autoScrollEnabled = AppState.get('settings.autoScroll');
+        
+        // Auto-scroll intelligente
+        const chatObserver = new MutationObserver(Utils.debounce((mutations) => {
+            if (!autoScrollEnabled) return;
+            
+            mutations.forEach(mutation => {
+                if (mutation.addedNodes.length) {
+                    const chatContainer = document.querySelector('.ts-chat-container');
+                    if (chatContainer) {
+                        const isNearBottom = 
+                            chatContainer.scrollHeight - chatContainer.clientHeight - chatContainer.scrollTop < 100;
+                        
+                        if (isNearBottom) {
+                            setTimeout(() => {
+                                chatContainer.scrollTo({
+                                    top: chatContainer.scrollHeight,
+                                    behavior: 'smooth'
+                                });
+                            }, 100);
+                        }
+                    }
+                }
+            });
+        }, 100));
+
+        // Inizia osservazione
+        setTimeout(() => {
+            const chatContainer = document.querySelector('.ts-chat-container');
+            if (chatContainer) {
+                chatObserver.observe(chatContainer, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        }, 3000);
+
+        // Sottoscrizione a cambiamenti settings
+        AppState.subscribe('settings.autoScroll', (value) => {
+            autoScrollEnabled = value;
+        });
+    }, ['PerformanceManager']);
+
+    FeatureManager.register('CallOptimizer', () => {
+        const optimizeCallInterface = Utils.debounce(() => {
+            const callControls = document.querySelector('.call-controls, .meeting-controls');
+            if (callControls) {
+                callControls.style.display = 'flex';
+                callControls.style.justifyContent = 'center';
+                callControls.style.gap = '16px';
+                
+                callControls.querySelectorAll('button').forEach(btn => {
+                    btn.style.width = '56px';
+                    btn.style.height = '56px';
+                    btn.style.borderRadius = '50%';
+                });
+            }
+        }, 500);
+
+        optimizeCallInterface();
+        setInterval(optimizeCallInterface, 2000);
     });
+
+    FeatureManager.register('QuickActions', () => {
+        // Crea il container per le quick actions
+        const actionsContainer = document.createElement('div');
+        actionsContainer.id = 'teams-quick-actions';
+        document.body.appendChild(actionsContainer);
+
+        // Renderizza il componente React
+        const root = ReactDOM.createRoot(actionsContainer);
+        root.render(React.createElement(ReactComponents.QuickActionsMenu));
+    });
+
+    // === INIZIALIZZAZIONE ===
+    function initialize() {
+        console.log('🚀 Teams Mobile Ultimate Pro - Inizializzazione...');
+        
+        // Inizializza le features
+        FeatureManager.init();
+        
+        // User-Agent spoofing per evitare redirect mobile
+        Object.defineProperty(navigator, 'userAgent', {
+            get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        });
+
+        // Rileva cambiamenti SPA
+        let lastUrl = location.href;
+        new MutationObserver(() => {
+            const url = location.href;
+            if (url !== lastUrl) {
+                lastUrl = url;
+                setTimeout(() => {
+                    FeatureManager.init();
+                }, 1000);
+            }
+        }).observe(document, { subtree: true, childList: true });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            PerformanceManager.cleanup();
+        });
+
+        Utils.notify('Teams Mobile Pro', 'Ottimizzazioni attive!', 2000);
+    }
+
+    // Avvia l'inizializzazione
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        setTimeout(initialize, 1000);
+    }
 
 })();
