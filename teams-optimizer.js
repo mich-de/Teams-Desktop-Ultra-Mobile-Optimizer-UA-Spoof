@@ -552,4 +552,523 @@
         }
 
         .nav-icon {
-   
+            font-size: 28px !important; /* Aumentato da 24px */
+            width: 28px !important;
+            height: 28px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .nav-label {
+            font-size: 14px !important; /* Aumentato da 12px */
+            font-weight: 500 !important;
+        }
+
+        .nav-badge {
+            position: absolute !important;
+            top: 8px !important; /* Aumentato da 6px */
+            right: calc(50% - 14px) !important;
+            width: 20px !important; /* Aumentato da 18px */
+            height: 20px !important;
+            border-radius: 50% !important;
+            background: var(--teams-error) !important;
+            color: white !important;
+            font-size: 12px !important; /* Aumentato da 10px */
+            font-weight: 600 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        /* === MESSAGGI REALI DA TEAMS === */
+        .teams-real-message {
+            max-width: 85% !important;
+            margin: 16px 0 !important;
+            padding: 16px 20px !important;
+            border-radius: 20px !important;
+            word-wrap: break-word !important;
+            line-height: 1.5 !important;
+            font-size: var(--font-size) !important;
+            background: white !important;
+            border-bottom-left-radius: 6px !important;
+            margin-right: auto !important;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important;
+        }
+
+        .teams-real-message.own-message {
+            background: var(--teams-primary) !important;
+            color: white !important;
+            border-bottom-right-radius: 6px !important;
+            margin-left: auto !important;
+        }
+
+        /* === RESPONSIVE MIGLIORATO === */
+        @media (max-width: 360px) {
+            :root {
+                --font-size: 18px; /* Mantenuto grande */
+                --font-size-large: 22px;
+                --avatar-size: 56px;
+            }
+            
+            .mobile-chat-item {
+                padding: 20px 16px !important;
+                min-height: 88px !important;
+            }
+        }
+
+        /* === DARK MODE === */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --teams-surface: #1c1c1e;
+                --teams-secondary: #2c2c2e;
+                --teams-border: #38383a;
+                --teams-text: #ffffff;
+                --teams-text-secondary: #98989f;
+            }
+            
+            .messages-container {
+                background: #000000 !important;
+            }
+            
+            .message-received {
+                background: #2c2c2e !important;
+                color: white !important;
+            }
+
+            .teams-real-message {
+                background: #2c2c2e !important;
+                color: white !important;
+            }
+        }
+
+        /* === ACCESSIBILITY === */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* === SCROLLBAR MIGLIORATA === */
+        .chats-list::-webkit-scrollbar {
+            width: 8px !important; /* Aumentato spessore */
+        }
+
+        .chats-list::-webkit-scrollbar-thumb {
+            background: #c1c1c1 !important;
+            border-radius: 4px !important;
+        }
+    `;
+
+    // Applica gli stili
+    GM_addStyle(OptimizedStyles);
+
+    // === INIZIALIZZAZIONE INTERFACCIA ===
+    function createMobileInterface() {
+        // Rimuovi interfaccia esistente
+        const existingApp = document.querySelector('.teams-mobile-optimized');
+        if (existingApp) existingApp.remove();
+        
+        // Crea il layout mobile ottimizzato
+        const mobileApp = document.createElement('div');
+        mobileApp.className = 'teams-mobile-optimized';
+        mobileApp.innerHTML = `
+            <!-- Status Bar -->
+            <div class="mobile-status-bar">
+                <div class="status-bar-time" id="currentTime">12:00</div>
+                <div class="nav-title">Teams</div>
+                <div class="status-bar-icons">
+                    <span class="material-icons">signal_cellular_alt</span>
+                    <span class="material-icons">wifi</span>
+                    <span class="material-icons">battery_full</span>
+                </div>
+            </div>
+
+            <!-- Navigation Bar -->
+            <div class="mobile-nav-bar">
+                <h1 class="nav-title" id="viewTitle">Chats</h1>
+                <div class="nav-actions">
+                    <button class="nav-button" id="searchButton">
+                        <span class="material-icons">search</span>
+                    </button>
+                    <button class="nav-button" id="newChatButton">
+                        <span class="material-icons">edit</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="mobile-content">
+                <div class="mobile-views" id="viewsContainer">
+                    <!-- Chats View -->
+                    <div class="mobile-view mobile-chats-view" id="chatsView">
+                        <div class="search-container">
+                            <input type="text" class="mobile-search" placeholder="Cerca conversazioni..." id="chatSearch">
+                        </div>
+                        <div class="chats-list" id="chatsList">
+                            <!-- Chat list sarà popolata dinamicamente -->
+                        </div>
+                    </div>
+
+                    <!-- Chat View -->
+                    <div class="mobile-view mobile-chat-view" id="chatView">
+                        <div class="chat-header-bar">
+                            <button class="back-button" id="backToChats">
+                                <span class="material-icons">arrow_back</span>
+                            </button>
+                            <div class="current-chat-info">
+                                <div class="chat-avatar" id="currentChatAvatar">
+                                    <span>T</span>
+                                    <div class="status-indicator status-online"></div>
+                                </div>
+                                <h2 class="current-chat-name" id="currentChatName">Teams</h2>
+                            </div>
+                            <div class="nav-actions">
+                                <button class="nav-button" id="callButton">
+                                    <span class="material-icons">call</span>
+                                </button>
+                                <button class="nav-button" id="videoButton">
+                                    <span class="material-icons">videocam</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="messages-container" id="messagesContainer">
+                            <div class="teams-real-message">
+                                Benvenuto in Teams Mobile! I tuoi messaggi appariranno qui.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Teams View -->
+                    <div class="mobile-view" id="teamsView">
+                        <div style="padding: 24px; text-align: center;">
+                            <h2 style="font-size: var(--font-size-large); margin-bottom: 16px;">Teams</h2>
+                            <p style="font-size: var(--font-size);">I tuoi team appariranno qui</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-container" id="inputContainer">
+                <textarea class="message-input" placeholder="Scrivi un messaggio..." id="messageInput"></textarea>
+                <button class="send-button" id="sendButton">
+                    <span class="material-icons">send</span>
+                </button>
+            </div>
+
+            <!-- Bottom Navigation -->
+            <div class="bottom-nav">
+                <button class="nav-item active" data-view="chats">
+                    <span class="nav-icon material-icons">chat</span>
+                    <span class="nav-label">Chat</span>
+                </button>
+                <button class="nav-item" data-view="teams">
+                    <span class="nav-icon material-icons">groups</span>
+                    <span class="nav-label">Team</span>
+                </button>
+                <button class="nav-item" data-view="calls">
+                    <span class="nav-icon material-icons">call</span>
+                    <span class="nav-label">Chiamate</span>
+                </button>
+                <button class="nav-item" data-view="calendar">
+                    <span class="nav-icon material-icons">event</span>
+                    <span class="nav-label">Calendario</span>
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(mobileApp);
+        
+        // Inizializza le funzionalità
+        initializeMobileFeatures();
+    }
+
+    // === INIZIALIZZAZIONE FUNZIONALITÀ ===
+    function initializeMobileFeatures() {
+        // Aggiorna l'orario
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        }
+        updateTime();
+        setInterval(updateTime, 60000);
+
+        // Popola la lista chat con dati reali da Teams
+        extractRealChats();
+
+        // Gestione navigazione
+        setupNavigation();
+
+        // Gestione input messaggi
+        setupMessageInput();
+
+        // Gestione interazioni
+        setupInteractions();
+    }
+
+    // === ESTRAI CHAT REALI DA TEAMS ===
+    function extractRealChats() {
+        const chatsList = document.getElementById('chatsList');
+        if (!chatsList) return;
+
+        // Cerca elementi chat reali di Teams
+        const teamsChatItems = document.querySelectorAll('[data-tid*="chat-list-item"], .ts-chat-list-item');
+        
+        if (teamsChatItems.length > 0) {
+            // Usa le chat reali di Teams
+            teamsChatItems.forEach((item, index) => {
+                if (index > 15) return; // Limita a 15 chat
+                
+                const chatElement = document.createElement('div');
+                chatElement.className = 'mobile-chat-item';
+                chatElement.setAttribute('data-chat-id', index);
+                
+                // Estrai informazioni dalla chat reale
+                const nameElement = item.querySelector('[class*="name"], [class*="title"]');
+                const previewElement = item.querySelector('[class*="preview"], [class*="message"]');
+                const timeElement = item.querySelector('[class*="time"], [class*="timestamp"]');
+                const unreadElement = item.querySelector('[class*="unread"], [class*="badge"]');
+                
+                const chatName = nameElement ? nameElement.textContent.trim() : `Chat ${index + 1}`;
+                const chatPreview = previewElement ? previewElement.textContent.trim() : 'Ultimo messaggio...';
+                const chatTime = timeElement ? timeElement.textContent.trim() : '12:00';
+                const hasUnread = unreadElement !== null;
+                const unreadCount = hasUnread ? (unreadElement.textContent || '1') : '0';
+                
+                chatElement.innerHTML = `
+                    <div class="chat-avatar">
+                        ${chatName.charAt(0).toUpperCase()}
+                        <div class="status-indicator status-online"></div>
+                    </div>
+                    <div class="chat-info">
+                        <div class="chat-header">
+                            <h3 class="chat-name">${chatName}</h3>
+                            <span class="chat-time">${chatTime}</span>
+                        </div>
+                        <div class="chat-preview">${chatPreview}</div>
+                    </div>
+                    ${hasUnread ? `<div class="unread-badge">${unreadCount}</div>` : ''}
+                `;
+                
+                chatsList.appendChild(chatElement);
+            });
+        } else {
+            // Fallback: mostra messaggio informativo
+            chatsList.innerHTML = `
+                <div style="padding: 40px 20px; text-align: center; color: var(--teams-text-secondary);">
+                    <span class="material-icons" style="font-size: 48px; margin-bottom: 16px;">chat</span>
+                    <p style="font-size: var(--font-size);">Le tue chat di Teams appariranno qui</p>
+                </div>
+            `;
+        }
+    }
+
+    // === SETUP NAVIGAZIONE ===
+    function setupNavigation() {
+        const viewsContainer = document.getElementById('viewsContainer');
+        const navItems = document.querySelectorAll('.nav-item');
+        const backButton = document.getElementById('backToChats');
+
+        // Navigazione bottom bar
+        navItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const view = this.getAttribute('data-view');
+                
+                // Aggiorna UI
+                navItems.forEach(nav => nav.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Aggiorna titolo
+                document.getElementById('viewTitle').textContent = 
+                    view.charAt(0).toUpperCase() + view.slice(1);
+                
+                // Animazione transizione
+                gsap.to(viewsContainer, {
+                    x: getViewPosition(view),
+                    duration: 0.4,
+                    ease: "power2.out"
+                });
+            });
+        });
+
+        // Bottone back
+        backButton.addEventListener('click', function() {
+            showChatsView();
+        });
+
+        // Bottone nuova chat
+        document.getElementById('newChatButton').addEventListener('click', function() {
+            alert('Funzionalità Nuova Chat - Integrazione con Teams in sviluppo');
+        });
+    }
+
+    function getViewPosition(view) {
+        const positions = {
+            'chats': '0vw',
+            'teams': '-100vw', 
+            'calls': '-200vw',
+            'calendar': '-200vw'
+        };
+        return positions[view] || '0vw';
+    }
+
+    function showChatsView() {
+        document.querySelector('.nav-item[data-view="chats"]').click();
+    }
+
+    // === SETUP INPUT MESSAGGI ===
+    function setupMessageInput() {
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+
+        sendButton.addEventListener('click', function() {
+            sendMessage();
+        });
+
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Auto-adjust height
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 140) + 'px';
+        });
+    }
+
+    function sendMessage() {
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value.trim();
+        
+        if (message) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'teams-real-message own-message';
+            messageDiv.innerHTML = `
+                ${message}
+                <div class="message-time">${new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Reset input
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            // Animazione
+            gsap.from(messageDiv, {
+                scale: 0.8,
+                opacity: 0,
+                duration: 0.3,
+                ease: "back.out(1.7)"
+            });
+        }
+    }
+
+    // === SETUP INTERAZIONI ===
+    function setupInteractions() {
+        // Click su chat items
+        document.addEventListener('click', function(e) {
+            const chatItem = e.target.closest('.mobile-chat-item');
+            if (chatItem) {
+                const chatName = chatItem.querySelector('.chat-name').textContent;
+                const chatAvatar = chatItem.querySelector('.chat-avatar span').textContent;
+                showChatView(chatName, chatAvatar);
+            }
+        });
+
+        // Bottoni chiamata e video
+        document.getElementById('callButton').addEventListener('click', function() {
+            alert('Avvia chiamata - Integrazione con Teams in sviluppo');
+        });
+
+        document.getElementById('videoButton').addEventListener('click', function() {
+            alert('Avvia videochiamata - Integrazione con Teams in sviluppo');
+        });
+    }
+
+    function showChatView(chatName, chatAvatar) {
+        // Aggiorna info chat
+        document.getElementById('currentChatName').textContent = chatName;
+        document.getElementById('currentChatAvatar').querySelector('span').textContent = chatAvatar;
+        
+        // Mostra la view chat
+        gsap.to(document.getElementById('viewsContainer'), {
+            x: '-100vw',
+            duration: 0.4,
+            ease: "power2.out"
+        });
+        
+        // Carica messaggi reali
+        loadRealMessages(chatName);
+    }
+
+    // === CARICA MESSAGGI REALI ===
+    function loadRealMessages(chatName) {
+        const messagesContainer = document.getElementById('messagesContainer');
+        
+        // Pulisci container
+        messagesContainer.innerHTML = '<div class="teams-real-message">Caricamento messaggi...</div>';
+        
+        // Cerca messaggi reali nell'interfaccia Teams originale
+        setTimeout(() => {
+            const realMessages = document.querySelectorAll('.chat-message, .message-item');
+            
+            if (realMessages.length > 0) {
+                messagesContainer.innerHTML = '';
+                
+                realMessages.forEach((msg, index) => {
+                    if (index > 20) return; // Limita a 20 messaggi
+                    
+                    const messageDiv = document.createElement('div');
+                    const isOwnMessage = msg.classList.contains('sent') || msg.textContent.includes('Tu:');
+                    
+                    messageDiv.className = `teams-real-message ${isOwnMessage ? 'own-message' : ''}`;
+                    messageDiv.textContent = msg.textContent.trim();
+                    
+                    messagesContainer.appendChild(messageDiv);
+                });
+            } else {
+                messagesContainer.innerHTML = `
+                    <div class="teams-real-message">
+                        Conversazione con ${chatName}. I messaggi reali di Teams appariranno qui.
+                    </div>
+                `;
+            }
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 500);
+    }
+
+    // === INIZIALIZZAZIONE ===
+    function initialize() {
+        console.log('🚀 Teams Mobile Optimized - Inizializzazione...');
+        
+        // User-Agent spoofing per mobile
+        Object.defineProperty(navigator, 'userAgent', {
+            get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+        });
+
+        // Crea l'interfaccia mobile
+        createMobileInterface();
+
+        // Periodicamente aggiorna le chat reali
+        setInterval(extractRealChats, 5000);
+    }
+
+    // AVVIA L'APPLICAZIONE
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        setTimeout(initialize, 100);
+    }
+
+})();
