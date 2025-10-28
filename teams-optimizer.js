@@ -1,59 +1,15 @@
 // ==UserScript==
-// @name         Teams Desktop Ultra-Mobile Optimizer + UA Spoof
+// @name         Teams Desktop Ultra-Mobile Optimizer
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Interfaccia Teams stile mobile in desktop mode + spoofing User-Agent per evitare detection mobile
+// @version      1.1
+// @description  Interfaccia Teams stile mobile anche in desktop mode: fullscreen vero, elementi desktop nascosti, touch extra!
 // @author       Michele De Angelis
 // @match        https://teams.microsoft.com/*
 // @grant        GM_addStyle
-// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
-
-    // ============================================
-    // PARTE 1: USER-AGENT SPOOFING
-    // ============================================
-    
-    // Sovrascrivi navigator.userAgent PRIMA che la pagina carichi
-    // Questo fa credere a Teams che stai usando un browser desktop normale
-    Object.defineProperty(navigator, 'userAgent', {
-        get: function() {
-            // User-Agent di Chrome Desktop su Windows 11
-            return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-        },
-        configurable: false
-    });
-
-    // Sovrascrivi anche altre proprietà del navigator per sicurezza
-    Object.defineProperty(navigator, 'platform', {
-        get: function() { return 'Win32'; },
-        configurable: false
-    });
-
-    Object.defineProperty(navigator, 'vendor', {
-        get: function() { return 'Google Inc.'; },
-        configurable: false
-    });
-
-    // Nasconde le API mobile-specific
-    if (navigator.userAgentData) {
-        Object.defineProperty(navigator.userAgentData, 'mobile', {
-            get: function() { return false; },
-            configurable: false
-        });
-    }
-
-    // Modifica maxTouchPoints (dispositivi desktop hanno 0 o pochi touch points)
-    Object.defineProperty(navigator, 'maxTouchPoints', {
-        get: function() { return 0; },
-        configurable: false
-    });
-
-    // ============================================
-    // PARTE 2: STILI CSS MOBILE-OPTIMIZED
-    // ============================================
 
     // Sidebar ultra-compatta
     GM_addStyle(`
@@ -158,59 +114,36 @@
         }
     `);
 
-    // ============================================
-    // PARTE 3: FUNZIONALITÀ JAVASCRIPT
-    // ============================================
-
-    // Attendi il caricamento del DOM
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeFeatures);
-    } else {
-        initializeFeatures();
-    }
-
-    function initializeFeatures() {
-        // Floating button: torna sempre alla chat
-        let chatBtn = document.createElement("button");
-        chatBtn.innerText = "💬";
-        chatBtn.title = "Torna alla chat";
-        chatBtn.style.cssText = `
-            position: fixed;
-            right: 15px;
-            bottom: 75px;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: #6264A7;
-            color: #fff;
-            border: none;
-            z-index: 99999;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.17);
-            cursor: pointer;
-            font-size: 20px;
-        `;
-        
-        chatBtn.onclick = function(){
-            // Prova a focalizzare o scrollare la chat principale
-            let textarea = document.querySelector('textarea, input[type="text"]');
-            if (textarea) textarea.focus();
-            let chat = document.querySelector('.app-main, .chat-scrollable, .scrollable-y');
-            if (chat) chat.scrollTo(0, chat.scrollHeight);
-        };
-        
+    // Floating button: torna sempre alla chat
+    let chatBtn = document.createElement("button");
+    chatBtn.innerText = "💬";
+    chatBtn.title = "Torna alla chat";
+    chatBtn.style.position = "fixed";
+    chatBtn.style.right = "15px";
+    chatBtn.style.bottom = "75px";
+    chatBtn.style.width = "48px";
+    chatBtn.style.height = "48px";
+    chatBtn.style.borderRadius = "50%";
+    chatBtn.style.background = "#6264A7";
+    chatBtn.style.color = "#fff";
+    chatBtn.style.border = "none";
+    chatBtn.style.zIndex = "99999";
+    chatBtn.style.boxShadow = "0 2px 12px rgba(0,0,0,0.17)";
+    chatBtn.onclick = function(){
+        // Prova a focalizzare o scrollare la chat principale
+        let textarea = document.querySelector('textarea, input[type="text"]');
+        if (textarea) textarea.focus();
+        let chat = document.querySelector('.app-main, .chat-scrollable, .scrollable-y');
+        if (chat) chat.scrollTo(0, chat.scrollHeight);
+    };
+    window.addEventListener('DOMContentLoaded', function(){
         document.body.appendChild(chatBtn);
+    });
 
-        // Auto-scroll su nuovi messaggi
-        setInterval(function(){
-            let chat = document.querySelector('.chat-scrollable, .scrollable-y');
-            if (chat) chat.scrollTo(0, chat.scrollHeight);
-        }, 6000);
-    }
-
-    // Log per debug (rimuovi in produzione)
-    console.log('🔧 Teams Ultra-Mobile Optimizer attivo');
-    console.log('📱 User-Agent spoofato:', navigator.userAgent);
-    console.log('💻 Platform:', navigator.platform);
-    console.log('👆 MaxTouchPoints:', navigator.maxTouchPoints);
+    // Auto-scroll su nuovi messaggi
+    setInterval(function(){
+        let chat = document.querySelector('.chat-scrollable, .scrollable-y');
+        if (chat) chat.scrollTo(0, chat.scrollHeight);
+    }, 6000);
 
 })();
