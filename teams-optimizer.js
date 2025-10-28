@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Teams Desktop Ultra-Mobile Optimizer v3.0
+// @name         Teams Mobile Blocker Remover Ultimate
 // @namespace    http://tampermonkey.net/
-// @version      3.0
-// @description  Trasforma Teams desktop in versione mobile completa + ottimizzazioni touch
+// @version      4.0
+// @description  Rimuove completamente il blocco mobile di Teams + spoofing avanzato
 // @author       Michele De Angelis
 // @match        https://teams.microsoft.com/*
 // @match        https://*.teams.microsoft.com/*
@@ -16,334 +16,250 @@
     'use strict';
 
     // -------------------------------
-    // SPOOF USER-AGENT COMPLETO
+    // SPOOFING USER-AGENT AVANZATO
     // -------------------------------
-    const originalDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');
-    Object.defineProperty(navigator, 'userAgent', {
-        get: function() {
-            return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-        },
-        configurable: false,
-        enumerable: true
+    
+    // Override completo delle proprietà navigator
+    const navigatorOverrides = {
+        'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'platform': 'Win32',
+        'vendor': 'Google Inc.',
+        'vendorSub': '',
+        'productSub': '20030107',
+        'maxTouchPoints': 0,
+        'hardwareConcurrency': 8,
+        'deviceMemory': 8,
+        'language': 'it-IT',
+        'languages': ['it-IT', 'it', 'en-US', 'en']
+    };
+
+    Object.keys(navigatorOverrides).forEach(prop => {
+        try {
+            Object.defineProperty(navigator, prop, {
+                get: () => navigatorOverrides[prop],
+                configurable: false,
+                enumerable: true
+            });
+        } catch (e) {}
     });
 
-    Object.defineProperty(navigator, 'platform', {
-        get: function() { return 'Win32'; },
-        configurable: false
-    });
-
-    Object.defineProperty(navigator, 'vendor', {
-        get: function() { return 'Google Inc.'; },
-        configurable: false
-    });
-
-    // Modern userAgentData API
+    // Modern User-Agent Client Hints API
     if (navigator.userAgentData) {
-        Object.defineProperty(navigator.userAgentData, 'mobile', {
-            get: function() { return false; },
+        Object.defineProperty(navigator.userAgentData, 'brands', {
+            get: () => [
+                { brand: 'Google Chrome', version: '120' },
+                { brand: 'Chromium', version: '120' },
+                { brand: 'Not=A?Brand', version: '24' }
+            ],
             configurable: false
         });
-        
+
+        Object.defineProperty(navigator.userAgentData, 'mobile', {
+            get: () => false,
+            configurable: false
+        });
+
         Object.defineProperty(navigator.userAgentData, 'platform', {
-            get: function() { return 'Windows'; },
+            get: () => 'Windows',
             configurable: false
         });
     }
 
-    Object.defineProperty(navigator, 'maxTouchPoints', {
-        get: function() { return 10; }, // Supporto touch ma non mobile
-        configurable: false
-    });
+    // Override screen properties
+    Object.defineProperty(screen, 'width', { get: () => 1920 });
+    Object.defineProperty(screen, 'height', { get: () => 1080 });
+    Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+    Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+    Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
+    Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
+
+    // Override window properties
+    Object.defineProperty(window, 'innerWidth', { get: () => 1920 });
+    Object.defineProperty(window, 'innerHeight', { get: () => 947 });
+    Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
+    Object.defineProperty(window, 'outerHeight', { get: () => 1040 });
+
+    // Intercept e blocca qualsiasi rilevamento mobile
+    const originalQuery = window.matchMedia;
+    window.matchMedia = function(query) {
+        if (query.includes('mobile') || query.includes('touch') || query.includes('max-width') || query.includes('orientation')) {
+            return {
+                matches: false,
+                media: query,
+                addListener: function() {},
+                removeListener: function() {},
+                addEventListener: function() {},
+                removeEventListener: function() {},
+                dispatchEvent: function() { return true; }
+            };
+        }
+        return originalQuery.apply(this, arguments);
+    };
 
     // -------------------------------
-    // STILI MOBILE COMPLETI
+    // INTERCETTAZIONE NETWORK REQUESTS
     // -------------------------------
+    
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(body) {
+        if (this._url && this._url.includes('teams.microsoft.com')) {
+            this.setRequestHeader('User-Agent', navigatorOverrides.userAgent);
+        }
+        return originalSend.call(this, body);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+        this._url = url;
+        return originalOpen.call(this, method, url, async !== false, user, password);
+    };
+
+    // -------------------------------
+    // STILI DI EMERGENZA PER BYPASS MOBILE
+    // -------------------------------
+    
     GM_addStyle(`
-        /* Layout principale mobile */
-        .teams-app-layout,
-        #teams-app-root,
-        .app-root {
-            min-height: 100vh !important;
-            max-width: 100vw !important;
-            overflow-x: hidden !important;
-        }
-
-        /* Barra laterale ultra-compatta */
-        .app-bar, 
-        .LeftRail, 
-        .global-nav-bar,
-        .left-rail-container,
-        [data-tid="left-rail"] {
-            width: 48px !important;
-            min-width: 48px !important;
-            max-width: 48px !important;
-            transform: none !important;
-            transition: none !important;
-        }
-
-        /* Contenuto principale */
-        .app-main,
-        .main-content,
-        [data-tid="content-area"] {
-            margin-left: 48px !important;
-            width: calc(100vw - 48px) !important;
-            max-width: none !important;
-            padding: 0 !important;
-        }
-
-        /* Rimuovi header e elementi desktop */
-        .app-header,
-        .teamHeader,
-        .meetingBanner,
-        .sidePanel,
-        .top-menu-bar,
-        .header-bar,
-        .command-bar,
-        .toolbar-container,
-        .banner-content {
+        /* Nascondi completamente qualsiasi banner di errore mobile */
+        [class*="mobile"],
+        [class*="Mobile"],
+        [id*="mobile"],
+        [id*="Mobile"],
+        .mobile-warning,
+        .mobile-block,
+        .unsupported-browser,
+        .browser-warning,
+        .device-warning,
+        .upgrade-browser,
+        .unsupported-device {
             display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
             height: 0 !important;
             min-height: 0 !important;
-            opacity: 0 !important;
-            visibility: hidden !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
         }
 
-        /* Chat e messaggi - stile mobile */
-        .chat-container,
-        .chat-list,
-        .messages-container {
-            padding: 4px !important;
-            margin: 0 !important;
+        /* Forza il layout desktop */
+        body, html {
+            min-width: 1024px !important;
+            min-height: 768px !important;
+            overflow: auto !important;
         }
 
-        .chat-message,
-        .message-item {
-            margin: 8px 4px !important;
-            padding: 12px !important;
-            border-radius: 18px !important;
-            max-width: 85% !important;
+        /* Layout Teams compatto ma desktop */
+        .teams-app-layout {
+            min-width: 1024px !important;
         }
 
-        /* Input messaggi fisso in basso */
-        .ts-message-compose-box,
-        .compose-box,
-        .message-compose-box,
-        .compose-message-input,
-        .ts-message-box {
+        .app-bar, .LeftRail {
+            width: 60px !important;
+            min-width: 60px !important;
+        }
+
+        .app-main {
+            margin-left: 60px !important;
+            width: calc(100% - 60px) !important;
+        }
+
+        /* Input fisso in basso */
+        .ts-message-compose-box {
             position: fixed !important;
-            bottom: 0 !important;
-            left: 48px !important;
-            right: 0 !important;
-            width: calc(100vw - 48px) !important;
-            height: 60px !important;
-            background: white !important;
-            border-top: 1px solid #e1e1e1 !important;
+            bottom: 10px !important;
+            left: 70px !important;
+            right: 20px !important;
+            width: auto !important;
             z-index: 10000 !important;
-            padding: 8px 12px !important;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
+            background: white !important;
+            border: 1px solid #ddd !important;
+            border-radius: 8px !important;
+            padding: 10px !important;
         }
 
-        /* Bottoni touch più grandi */
-        button,
-        .ts-btn,
-        .ms-Button,
-        [role="button"],
-        .ui-button {
+        /* Bottoni touch-friendly */
+        button, .ts-btn {
             min-width: 44px !important;
             min-height: 44px !important;
             padding: 12px !important;
             font-size: 16px !important;
-            border-radius: 8px !important;
-        }
-
-        /* Input text più grandi per mobile */
-        input[type="text"],
-        input[type="search"],
-        textarea {
-            font-size: 16px !important;
-            padding: 12px !important;
-            min-height: 44px !important;
-        }
-
-        /* Scroll ottimizzato per touch */
-        .app-main,
-        .chat-scrollable,
-        .scrollable-container,
-        .ts-chat-container {
-            -webkit-overflow-scrolling: touch !important;
-            scroll-behavior: smooth !important;
-            overflow-y: auto !important;
-            scrollbar-width: none !important;
-        }
-
-        .app-main::-webkit-scrollbar,
-        .chat-scrollable::-webkit-scrollbar {
-            display: none !important;
-        }
-
-        /* Lista chat e contatti */
-        .teams-list,
-        .chat-list,
-        .contacts-list {
-            padding: 2px !important;
-        }
-
-        .team-item,
-        .chat-item,
-        .contact-item {
-            padding: 12px 8px !important;
-            margin: 2px 0 !important;
-            min-height: 52px !important;
-        }
-
-        /* Video chiamata - layout mobile */
-        .video-container,
-        .meeting-container {
-            max-width: 100vw !important;
-            padding: 0 !important;
-        }
-
-        .video-frame,
-        .participant-video {
-            width: 100% !important;
-            height: auto !important;
-            max-height: 40vh !important;
-        }
-
-        /* Barra strumenti chiamata */
-        .call-controls,
-        .meeting-controls {
-            position: fixed !important;
-            bottom: 70px !important;
-            left: 48px !important;
-            right: 0 !important;
-            padding: 10px !important;
-            background: transparent !important;
-        }
-
-        /* Responsive per schermi piccoli */
-        @media (max-width: 480px) {
-            .app-bar, .LeftRail { width: 42px !important; min-width: 42px !important; max-width: 42px !important; }
-            .app-main { margin-left: 42px !important; width: calc(100vw - 42px) !important; }
-            .ts-message-compose-box { left: 42px !important; width: calc(100vw - 42px) !important; }
-        }
-
-        @media (max-width: 360px) {
-            .app-bar, .LeftRail { width: 38px !important; min-width: 38px !important; max-width: 38px !important; }
-            .app-main { margin-left: 38px !important; width: calc(100vw - 38px) !important; }
-            .ts-message-compose-box { left: 38px !important; width: calc(100vw - 38px) !important; }
-        }
-
-        /* Rimuovi elementi non necessari */
-        .cookie-banner,
-        .consent-banner,
-        .marketing-banner,
-        .promo-banner {
-            display: none !important;
         }
     `);
 
     // -------------------------------
-    // FUNZIONALITÀ MOBILE AVANZATE
+    // MONITORAGGIO E BYPASS IN TEMPO REALE
     // -------------------------------
-    function initializeMobileFeatures() {
-        // Bottone chat rapida
-        const quickChatBtn = document.createElement("button");
-        quickChatBtn.innerHTML = "💬";
-        quickChatBtn.title = "Scorri alla chat";
-        quickChatBtn.style.cssText = `
-            position: fixed;
-            right: 20px;
-            bottom: 80px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: #6264A7;
-            color: white;
-            border: none;
-            z-index: 99999;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-            cursor: pointer;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-        
-        quickChatBtn.addEventListener('click', function() {
-            const textarea = document.querySelector('textarea, [role="textbox"], .compose-box input');
-            if (textarea) {
-                textarea.focus();
-                textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            
-            const chatContainer = document.querySelector('.chat-scrollable, .messages-container, [data-tid="message-list"]');
-            if (chatContainer) {
-                chatContainer.scrollTo({
-                    top: chatContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }
-        });
-        
-        document.body.appendChild(quickChatBtn);
+    
+    function checkAndRemoveMobileBlocks() {
+        // Cerca elementi che contengono testo relativo al blocco mobile
+        const mobileKeywords = [
+            'mobile', 'Mobile', 'MOBILE',
+            'non supportato', 'unsupported',
+            'browser non supportato', 'unsupported browser',
+            'dispositivo non supportato', 'unsupported device',
+            'use desktop', 'usa desktop'
+        ];
 
-        // Auto-scroll alla nuova chat
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                if (mutation.addedNodes.length) {
-                    const chatContainer = document.querySelector('.chat-scrollable, .messages-container');
-                    if (chatContainer) {
-                        setTimeout(() => {
-                            chatContainer.scrollTo({
-                                top: chatContainer.scrollHeight,
-                                behavior: 'smooth'
-                            });
-                        }, 500);
-                    }
+        mobileKeywords.forEach(keyword => {
+            const elements = document.querySelectorAll(`*:contains(${keyword})`);
+            elements.forEach(el => {
+                if (el.textContent.includes(keyword)) {
+                    el.style.display = 'none';
+                    el.style.visibility = 'hidden';
+                    el.style.height = '0';
+                    el.style.overflow = 'hidden';
                 }
             });
         });
 
-        // Inizia l'osservazione
-        setTimeout(() => {
-            const chatContainer = document.querySelector('.chat-scrollable, .messages-container');
-            if (chatContainer) {
-                observer.observe(chatContainer, {
-                    childList: true,
-                    subtree: true
-                });
+        // Rimuovi overlay di blocco
+        const blockers = document.querySelectorAll([
+            '.modal', '.overlay', '.dialog', '.popup',
+            '[role="dialog"]', '[aria-modal="true"]',
+            '.banner', '.warning', '.error'
+        ].join(','));
+
+        blockers.forEach(blocker => {
+            const html = blocker.innerHTML.toLowerCase();
+            if (html.includes('mobile') || html.includes('unsupported') || html.includes('browser')) {
+                blocker.remove();
             }
-        }, 3000);
-
-        // Miglioramenti touch
-        document.addEventListener('touchstart', function() {}, { passive: true });
-        
-        // Ottimizza i click per touch
-        document.querySelectorAll('button, [role="button"]').forEach(btn => {
-            btn.style.cursor = 'pointer';
         });
     }
 
-    // Inizializzazione ritardata per garantire il caricamento di Teams
+    // Esegui il controllo periodicamente
+    setInterval(checkAndRemoveMobileBlocks, 1000);
+
+    // -------------------------------
+    // INIZIALIZZAZIONE
+    // -------------------------------
+    
+    function initialize() {
+        console.log('🚀 Teams Mobile Blocker Remover - ATTIVO');
+        console.log('🖥️  User-Agent spoofato:', navigator.userAgent);
+        console.log('📱 Mobile detection disabilitato');
+
+        // Forza il reload se necessario
+        if (window.location.href.includes('unsupported') || window.location.href.includes('mobile')) {
+            window.location.href = 'https://teams.microsoft.com/';
+        }
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initializeMobileFeatures, 2000);
-        });
+        document.addEventListener('DOMContentLoaded', initialize);
     } else {
-        setTimeout(initializeMobileFeatures, 2000);
+        initialize();
     }
 
-    // Re-inizializza quando cambia la route (navigazione SPA)
+    // Monitora cambiamenti URL (SPA navigation)
     let lastUrl = location.href;
     new MutationObserver(() => {
         const url = location.href;
         if (url !== lastUrl) {
             lastUrl = url;
-            setTimeout(initializeMobileFeatures, 1000);
+            setTimeout(checkAndRemoveMobileBlocks, 500);
         }
     }).observe(document, { subtree: true, childList: true });
 
-    console.log('📱 Teams Mobile Optimizer v3.0 attivo');
-    console.log('🖥️  User-Agent:', navigator.userAgent);
 })();
