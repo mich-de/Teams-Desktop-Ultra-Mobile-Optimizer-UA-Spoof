@@ -1,229 +1,71 @@
 // ==UserScript==
-// @name         Teams Mobile Ultimate Pro
+// @name         Teams Mobile Optimized
 // @namespace    http://tampermonkey.net/
-// @version      7.0
-// @description  Teams mobile ottimizzato con librerie JS e best practices
+// @version      7.1
+// @description  Teams mobile con colonna chat espandibile e scrittura ottimizzata
 // @author       You
 // @match        https://teams.microsoft.com/*
 // @match        https://*.teams.microsoft.com/*
-// @require      https://unpkg.com/react@18/umd/react.production.min.js
-// @require      https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
-// @require      https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js
-// @require      https://unpkg.com/immer@9.0.19/dist/immer.umd.production.min.js
-// @require      https://unpkg.com/axios@1.4.0/dist/axios.min.js
-// @resource     toastCSS https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.css
 // @grant        GM_addStyle
-// @grant        GM_getResourceText
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @grant        GM_notification
 // @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // === CONFIGURAZIONE E CONSTANTI ===
+    // === CONFIGURAZIONE ===
     const CONFIG = {
         SIDEBAR_WIDTH: '68px',
-        MAIN_CONTENT_MARGIN: '68px',
-        TOUCH_TARGET_SIZE: '44px',
-        AVATAR_SIZE: '48px',
-        STATUS_ICON_SIZE: '10px',
-        MOBILE_BREAKPOINT: '480px',
-        ANIMATION_DURATION: '200ms'
+        CHAT_LIST_WIDTH: '320px',
+        CHAT_LIST_COLLAPSED: '80px',
+        TOUCH_TARGET: '44px',
+        AVATAR_SIZE: '44px',
+        STATUS_SIZE: '10px',
+        MOBILE_BREAKPOINT: '480px'
     };
 
-    // === INIZIALIZZAZIONE LIBRERIE ===
-    const _ = window._;
-    const axios = window.axios;
-    const produce = window.immer.produce;
-
-    // Carica CSS Toastify
-    const toastifyCSS = GM_getResourceText('toastCSS');
-    GM_addStyle(toastifyCSS);
-
-    // === UTILITY FUNCTIONS ===
-    const Utils = {
-        // Debounce per performance
-        debounce: (func, wait) => _.debounce(func, wait),
-        
-        // Deep clone per stato
-        clone: (obj) => produce(obj, draft => draft),
-        
-        // Local storage con fallback
-        storage: {
-            set: (key, value) => {
-                try {
-                    GM_setValue(key, JSON.stringify(value));
-                } catch (e) {
-                    console.warn('Storage set failed:', e);
-                }
-            },
-            get: (key, defaultValue = null) => {
-                try {
-                    const value = GM_getValue(key);
-                    return value ? JSON.parse(value) : defaultValue;
-                } catch (e) {
-                    console.warn('Storage get failed:', e);
-                    return defaultValue;
-                }
-            }
-        },
-
-        // Notifiche utente
-        notify: (title, message, timeout = 3000) => {
-            GM_notification({
-                title: title,
-                text: message,
-                timeout: timeout,
-                silent: true
-            });
-        },
-
-        // Rilevamento dispositivo e orientamento
-        device: {
-            isMobile: () => window.innerWidth <= 768,
-            isLandscape: () => window.innerWidth > window.innerHeight,
-            getTouchPoints: () => navigator.maxTouchPoints || 0
+    // === STATO APPLICAZIONE ===
+    let appState = {
+        chatListExpanded: true,
+        currentView: 'chat',
+        settings: {
+            autoScroll: true,
+            largeTouchTargets: true
         }
     };
 
-    // === GESTIONE STATO APPLICAZIONE ===
-    const AppState = (function() {
-        let state = {
-            ui: {
-                sidebarCollapsed: false,
-                currentView: 'chat',
-                unreadCount: 0,
-                theme: 'light'
-            },
-            user: {
-                status: 'available',
-                lastActive: Date.now()
-            },
-            calls: {
-                activeCall: null,
-                muted: false,
-                videoOn: false
-            },
-            settings: Utils.storage.get('teams_mobile_settings', {
-                autoScroll: true,
-                largeTouchTargets: true,
-                optimizedCalls: true,
-                showStatusIcons: true
-            })
-        };
+    // Carica stato salvato
+    try {
+        const saved = GM_getValue('teams_mobile_state');
+        if (saved) appState = { ...appState, ...saved };
+    } catch (e) {}
 
-        return {
-            get: (path) => _.get(state, path),
-            set: (path, value) => {
-                state = produce(state, draft => {
-                    _.set(draft, path, value);
-                });
-                
-                // Salva settings su cambiamento
-                if (path.startsWith('settings')) {
-                    Utils.storage.set('teams_mobile_settings', state.settings);
-                }
-                
-                return state;
-            },
-            subscribe: (path, callback) => {
-                // Semplice implementazione observer pattern
-                const checkInterval = setInterval(() => {
-                    const currentValue = _.get(state, path);
-                    if (currentValue !== callback.lastValue) {
-                        callback.lastValue = Utils.clone(currentValue);
-                        callback(currentValue);
-                    }
-                }, 100);
-                
-                return () => clearInterval(checkInterval);
-            }
-        };
-    })();
-
-    // === COMPONENTI REACT PER UI AVANZATA ===
-    const ReactComponents = {
-        // Quick Actions Menu
-        QuickActionsMenu: function() {
-            const [isOpen, setIsOpen] = React.useState(false);
-            
-            const actions = [
-                { icon: '💬', label: 'Nuova Chat', action: () => this.openNewChat() },
-                { icon: '📞', label: 'Nuova Chiamata', action: () => this.startNewCall() },
-                { icon: '👥', label: 'Nuovo Gruppo', action: () => this.createGroup() },
-                { icon: '📎', label: 'Condividi File', action: () => this.shareFile() }
-            ];
-
-            return React.createElement('div', { className: 'quick-actions-menu' },
-                React.createElement('button', {
-                    className: `quick-actions-toggle ${isOpen ? 'open' : ''}`,
-                    onClick: () => setIsOpen(!isOpen)
-                }, '⚙️'),
-                isOpen && React.createElement('div', { className: 'quick-actions-dropdown' },
-                    actions.map((action, index) => 
-                        React.createElement('button', {
-                            key: index,
-                            className: 'quick-action-item',
-                            onClick: action.action
-                        }, 
-                        React.createElement('span', { className: 'action-icon' }, action.icon),
-                        React.createElement('span', { className: 'action-label' }, action.label)
-                        )
-                    )
-                )
-            );
-        },
-
-        // Status Indicator
-        StatusIndicator: function({ status, size = 'medium' }) {
-            const statusConfig = {
-                available: { color: '#6bb700', label: 'Disponibile' },
-                away: { color: '#ffaa44', label: 'Assente' },
-                busy: { color: '#d13438', label: 'Occupato' },
-                offline: { color: '#8a8886', label: 'Offline' }
-            };
-
-            const config = statusConfig[status] || statusConfig.offline;
-            
-            return React.createElement('div', {
-                className: `status-indicator ${size}`,
-                style: { backgroundColor: config.color },
-                title: config.label
-            });
-        }
-    };
-
-    // === STILI AVANZATI CON CSS VARIABLES ===
-    const AdvancedStyles = `
+    // === STILI PRINCIPALI ===
+    GM_addStyle(`
         :root {
             --teams-primary: #6264a7;
             --teams-secondary: #f3f2f1;
             --teams-border: #e1dfdd;
             --teams-text: #323130;
-            --teams-text-secondary: #605e5c;
-            --touch-target: ${CONFIG.TOUCH_TARGET_SIZE};
-            --avatar-size: ${CONFIG.AVATAR_SIZE};
             --sidebar-width: ${CONFIG.SIDEBAR_WIDTH};
-            --animation-duration: ${CONFIG.ANIMATION_DURATION};
+            --chat-list-width: ${CONFIG.CHAT_LIST_WIDTH};
+            --chat-list-collapsed: ${CONFIG.CHAT_LIST_COLLAPSED};
+            --touch-target: ${CONFIG.TOUCH_TARGET};
         }
 
-        ${toastifyCSS}
-
-        /* === LAYOUT FONDAMENTALE === */
-        .teams-app-layout {
+        /* === LAYOUT BASE MOBILE === */
+        body, html {
             width: 100vw !important;
             height: 100vh !important;
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            font-size: 16px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
             touch-action: manipulation !important;
         }
 
-        /* === BARRA LATERALE OTTIMIZZATA === */
+        /* === BARRA LATERALE COMPATTA === */
         .app-bar, .LeftRail {
             width: var(--sidebar-width) !important;
             min-width: var(--sidebar-width) !important;
@@ -235,10 +77,9 @@
             z-index: 1000 !important;
             background: var(--teams-secondary) !important;
             border-right: 1px solid var(--teams-border) !important;
-            padding: 16px 0 !important;
         }
 
-        /* === CONTENUTO PRINCIPALE RESPONSIVE === */
+        /* === CONTENITORE PRINCIPALE CON TRANSITION === */
         .app-main {
             margin-left: var(--sidebar-width) !important;
             width: calc(100vw - var(--sidebar-width)) !important;
@@ -248,486 +89,365 @@
             right: 0 !important;
             background: white !important;
             overflow: hidden !important;
+            transition: all 0.3s ease !important;
         }
 
-        /* === AVATAR E STATO OTTIMIZZATI === */
-        .ts-avatar, [class*="avatar"] {
-            width: var(--avatar-size) !important;
-            height: var(--avatar-size) !important;
-            min-width: var(--avatar-size) !important;
-            min-height: var(--avatar-size) !important;
+        /* === COLONNA CHAT ESPANDIBILE === */
+        .ts-chat-list-container {
+            width: var(--chat-list-width) !important;
+            min-width: var(--chat-list-width) !important;
+            max-width: var(--chat-list-width) !important;
+            height: 100vh !important;
+            position: fixed !important;
+            left: var(--sidebar-width) !important;
+            top: 0 !important;
+            background: white !important;
+            border-right: 1px solid var(--teams-border) !important;
+            z-index: 900 !important;
+            transition: all 0.3s ease !important;
+            overflow: hidden !important;
+        }
+
+        /* STATO COLLASSATO */
+        .chat-list-collapsed .ts-chat-list-container {
+            width: var(--chat-list-collapsed) !important;
+            min-width: var(--chat-list-collapsed) !important;
+            max-width: var(--chat-list-collapsed) !important;
+        }
+
+        /* Nascondi elementi non necessari quando collassato */
+        .chat-list-collapsed .ts-chat-list-item-content,
+        .chat-list-collapsed .ts-chat-list-item-preview,
+        .chat-list-collapsed .ts-chat-list-item-time {
+            display: none !important;
+        }
+
+        /* === CONTENUTO CHAT PRINCIPALE === */
+        .ts-chat-main-container {
+            position: fixed !important;
+            left: calc(var(--sidebar-width) + var(--chat-list-width)) !important;
+            top: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            height: 100vh !important;
+            background: white !important;
+            transition: all 0.3s ease !important;
+        }
+
+        /* Espandi la chat quando la lista è collassata */
+        .chat-list-collapsed .ts-chat-main-container {
+            left: calc(var(--sidebar-width) + var(--chat-list-collapsed)) !important;
+        }
+
+        /* === BOTTONE TOGGLE COLONNA CHAT === */
+        .chat-list-toggle {
+            position: fixed !important;
+            left: calc(var(--sidebar-width) + 10px) !important;
+            top: 10px !important;
+            width: 32px !important;
+            height: 32px !important;
             border-radius: 50% !important;
-            position: relative !important;
             background: var(--teams-primary) !important;
+            color: white !important;
+            border: none !important;
+            z-index: 1001 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            color: white !important;
-            font-weight: 600 !important;
+            font-size: 14px !important;
+            cursor: pointer !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+            transition: all 0.3s ease !important;
         }
 
-        .ts-presence, [class*="presence"] {
-            width: ${CONFIG.STATUS_ICON_SIZE} !important;
-            height: ${CONFIG.STATUS_ICON_SIZE} !important;
-            border: 2px solid white !important;
-            border-radius: 50% !important;
-            position: absolute !important;
-            bottom: 2px !important;
-            right: 2px !important;
-            z-index: 10 !important;
+        .chat-list-collapsed .chat-list-toggle {
+            left: calc(var(--sidebar-width) + 25px) !important;
+            transform: rotate(180deg) !important;
         }
 
-        /* === INTERFACCIA CHAT MOBILE-FIRST === */
-        .ts-chat-container, .chat-container {
+        /* === OTTIMIZZAZIONI CHAT LIST === */
+        .ts-chat-list {
+            width: 100% !important;
+            height: 100vh !important;
+            overflow-y: auto !important;
+            padding: 50px 0 80px 0 !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .ts-chat-list-item {
+            width: 100% !important;
+            padding: 12px 8px !important;
+            margin: 0 !important;
+            min-height: 60px !important;
+            border-bottom: 1px solid #f5f5f5 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .chat-list-collapsed .ts-chat-list-item {
+            padding: 12px 4px !important;
+            justify-content: center !important;
+        }
+
+        /* Avatar in stato collassato */
+        .chat-list-collapsed .ts-avatar {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            min-height: 36px !important;
+        }
+
+        /* === CHAT CONTAINER OTTIMIZZATO === */
+        .ts-chat-container {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             right: 0 !important;
             bottom: 80px !important;
             height: auto !important;
-            padding: 16px !important;
+            padding: 60px 16px 16px 16px !important;
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch !important;
-            scroll-behavior: smooth !important;
+            background: white !important;
         }
 
-        .chat-message {
-            max-width: 85% !important;
-            margin: 12px 0 !important;
-            padding: 14px 16px !important;
-            border-radius: 18px !important;
-            word-wrap: break-word !important;
-            line-height: 1.4 !important;
-            transition: transform var(--animation-duration) ease !important;
-        }
-
-        .chat-message:active {
-            transform: scale(0.98) !important;
-        }
-
-        /* === INPUT MESSAGGI AVANZATO === */
-        .ts-message-compose-box, .compose-box {
+        /* === INPUT MESSAGGI MOBILE-FRIENDLY === */
+        .ts-message-compose-box {
             position: fixed !important;
             bottom: 10px !important;
-            left: 78px !important;
+            left: calc(var(--sidebar-width) + var(--chat-list-width) + 10px) !important;
             right: 10px !important;
-            width: calc(100vw - 88px) !important;
-            height: auto !important;
-            min-height: 64px !important;
+            height: 60px !important;
             background: white !important;
             border: 1px solid var(--teams-border) !important;
-            border-radius: 24px !important;
+            border-radius: 20px !important;
             z-index: 1000 !important;
-            padding: 12px 16px !important;
+            padding: 8px 16px !important;
             margin: 0 !important;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.08) !important;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
             display: flex !important;
             align-items: center !important;
             gap: 12px !important;
-            backdrop-filter: blur(10px) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .chat-list-collapsed .ts-message-compose-box {
+            left: calc(var(--sidebar-width) + var(--chat-list-collapsed) + 10px) !important;
         }
 
         textarea, [role="textbox"] {
             flex: 1 !important;
             min-height: 44px !important;
-            max-height: 120px !important;
+            max-height: 100px !important;
             padding: 12px 0 !important;
             border: none !important;
             background: transparent !important;
             font-size: 16px !important;
-            line-height: 1.4 !important;
             resize: none !important;
             outline: none !important;
-            font-family: inherit !important;
         }
 
-        /* === INTERFACCIA CHIAMATE OTTIMIZZATA === */
-        .call-container, .meeting-container {
-            position: fixed !important;
-            top: 0 !important;
-            left: var(--sidebar-width) !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: calc(100vw - var(--sidebar-width)) !important;
-            height: 100vh !important;
-            background: #1a1a1a !important;
-            z-index: 2000 !important;
-        }
-
-        .call-controls, .meeting-controls {
-            position: fixed !important;
-            bottom: 20px !important;
-            left: 88px !important;
-            right: 20px !important;
-            background: rgba(0,0,0,0.8) !important;
-            border-radius: 25px !important;
-            padding: 16px 20px !important;
-            z-index: 2001 !important;
-            display: flex !important;
-            justify-content: center !important;
-            gap: 16px !important;
-            backdrop-filter: blur(15px) !important;
-        }
-
-        .call-controls button {
-            width: 56px !important;
-            height: 56px !important;
-            border-radius: 50% !important;
-            border: none !important;
-            background: #505050 !important;
-            color: white !important;
-            font-size: 18px !important;
-            transition: all var(--animation-duration) ease !important;
-        }
-
-        .call-controls button:active {
-            transform: scale(0.9) !important;
-        }
-
-        /* === COMPONENTI PERSONALIZZATI === */
-        .quick-actions-menu {
-            position: fixed !important;
-            right: 20px !important;
-            bottom: 160px !important;
-            z-index: 9999 !important;
-        }
-
-        .quick-actions-toggle {
-            width: 56px !important;
-            height: 56px !important;
-            border-radius: 50% !important;
-            background: var(--teams-primary) !important;
-            color: white !important;
-            border: none !important;
-            font-size: 20px !important;
-            cursor: pointer !important;
-            box-shadow: 0 4px 20px rgba(98, 100, 167, 0.4) !important;
-            transition: transform var(--animation-duration) ease !important;
-        }
-
-        .quick-actions-toggle.open {
-            transform: rotate(45deg) !important;
-        }
-
-        .quick-actions-dropdown {
-            position: absolute !important;
-            bottom: 60px !important;
-            right: 0 !important;
-            background: white !important;
-            border-radius: 12px !important;
-            padding: 8px !important;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
-            min-width: 180px !important;
-        }
-
-        .quick-action-item {
-            width: 100% !important;
-            padding: 12px 16px !important;
-            border: none !important;
-            background: transparent !important;
-            text-align: left !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 12px !important;
-            border-radius: 8px !important;
-            cursor: pointer !important;
-        }
-
-        .quick-action-item:hover {
-            background: var(--teams-secondary) !important;
-        }
-
-        .action-icon {
-            font-size: 18px !important;
-        }
-
-        .action-label {
-            font-size: 14px !important;
-            color: var(--teams-text) !important;
-        }
-
-        /* === STATUS INDICATOR === */
-        .status-indicator {
-            border-radius: 50% !important;
-            border: 2px solid white !important;
-        }
-
-        .status-indicator.small {
-            width: 8px !important;
-            height: 8px !important;
-        }
-
-        .status-indicator.medium {
-            width: 10px !important;
-            height: 10px !important;
-        }
-
-        .status-indicator.large {
-            width: 12px !important;
-            height: 12px !important;
-        }
-
-        /* === TOUCH OPTIMIZATIONS === */
-        button, .ts-btn, [role="button"] {
+        /* === OTTIMIZZAZIONI TOUCH === */
+        button, .ts-btn {
             min-width: var(--touch-target) !important;
             min-height: var(--touch-target) !important;
             padding: 12px !important;
             border-radius: 8px !important;
-            font-size: 16px !important;
             touch-action: manipulation !important;
-            transition: all var(--animation-duration) ease !important;
         }
 
-        button:active, .ts-btn:active {
-            transform: scale(0.95) !important;
-            opacity: 0.8 !important;
+        /* === AVATAR E STATO === */
+        .ts-avatar {
+            width: var(--avatar-size) !important;
+            height: var(--avatar-size) !important;
+            border-radius: 50% !important;
+            position: relative !important;
         }
 
-        /* === RESPONSIVE DESIGN === */
+        .ts-presence {
+            width: ${CONFIG.STATUS_SIZE} !important;
+            height: ${CONFIG.STATUS_SIZE} !important;
+            border: 2px solid white !important;
+            border-radius: 50% !important;
+            position: absolute !important;
+            bottom: 2px !important;
+            right: 2px !important;
+        }
+
+        /* === HEADER COMPATTO === */
+        .app-header {
+            height: 50px !important;
+            min-height: 50px !important;
+            padding: 8px 16px !important;
+        }
+
+        /* === RESPONSIVE MOBILE === */
         @media (max-width: ${CONFIG.MOBILE_BREAKPOINT}) {
-            .app-bar, .LeftRail {
-                width: 60px !important;
+            :root {
+                --chat-list-width: 280px;
+                --chat-list-collapsed: 60px;
             }
-            
-            .app-main {
-                margin-left: 60px !important;
-                width: calc(100vw - 60px) !important;
+
+            .ts-chat-list-item {
+                padding: 10px 6px !important;
+                min-height: 55px !important;
             }
-            
-            .ts-message-compose-box {
-                left: 70px !important;
-                width: calc(100vw - 80px) !important;
+
+            .chat-list-collapsed .ts-chat-list-item {
+                padding: 10px 2px !important;
             }
-            
-            .call-controls {
-                left: 80px !important;
-                right: 15px !important;
+
+            .chat-list-toggle {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 12px !important;
             }
         }
 
+        /* === ORIENTAMENTO LANDSCAPE === */
         @media (orientation: landscape) and (max-height: 500px) {
             .ts-chat-container {
                 bottom: 70px !important;
+                padding-top: 50px !important;
             }
-            
+
             .ts-message-compose-box {
-                min-height: 56px !important;
+                height: 55px !important;
+                bottom: 8px !important;
+            }
+        }
+
+        /* === UTILITY === */
+        .scrollbar-hidden::-webkit-scrollbar {
+            display: none !important;
+        }
+    `);
+
+    // === FUNZIONALITÀ TOGGLE COLONNA CHAT ===
+    function initChatListToggle() {
+        // Crea bottone toggle
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'chat-list-toggle';
+        toggleBtn.innerHTML = '‹';
+        toggleBtn.title = 'Espandi/Comprimi lista chat';
+        
+        toggleBtn.addEventListener('click', function() {
+            appState.chatListExpanded = !appState.chatListExpanded;
+            
+            if (appState.chatListExpanded) {
+                document.body.classList.remove('chat-list-collapsed');
+                toggleBtn.style.transform = 'rotate(0deg)';
+            } else {
+                document.body.classList.add('chat-list-collapsed');
+                toggleBtn.style.transform = 'rotate(180deg)';
             }
             
-            .call-controls {
-                bottom: 15px !important;
-                padding: 12px 16px !important;
+            // Salva stato
+            try {
+                GM_setValue('teams_mobile_state', appState);
+            } catch (e) {}
+        });
+        
+        document.body.appendChild(toggleBtn);
+        
+        // Applica stato iniziale
+        if (!appState.chatListExpanded) {
+            document.body.classList.add('chat-list-collapsed');
+            toggleBtn.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    // === OTTIMIZZAZIONI DINAMICHE ===
+    function optimizeLayout() {
+        // Trova e migliora il container della lista chat
+        const chatListContainers = document.querySelectorAll('[data-tid="chat-list"], .ts-chat-list, .chat-list');
+        chatListContainers.forEach(container => {
+            if (!container.classList.contains('ts-chat-list-container')) {
+                container.classList.add('ts-chat-list-container');
             }
+        });
+
+        // Trova e migliora il container della chat principale
+        const mainChatContainers = document.querySelectorAll('[data-tid="message-list"], .ts-chat-container, .chat-container');
+        mainChatContainers.forEach(container => {
+            const parent = container.closest('.app-main, .main-content');
+            if (parent && !parent.querySelector('.ts-chat-main-container')) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'ts-chat-main-container';
+                parent.appendChild(wrapper);
+                wrapper.appendChild(container);
+            }
+        });
+
+        // Migliora gli avatar
+        const avatars = document.querySelectorAll('.ts-avatar, [class*="avatar"]');
+        avatars.forEach(avatar => {
+            avatar.style.width = CONFIG.AVATAR_SIZE;
+            avatar.style.height = CONFIG.AVATAR_SIZE;
+            avatar.style.minWidth = CONFIG.AVATAR_SIZE;
+            avatar.style.minHeight = CONFIG.AVATAR_SIZE;
+        });
+
+        // Migliora i bottoni per touch
+        const buttons = document.querySelectorAll('button, .ts-btn');
+        buttons.forEach(btn => {
+            btn.style.minHeight = CONFIG.TOUCH_TARGET;
+            btn.style.minWidth = CONFIG.TOUCH_TARGET;
+        });
+    }
+
+    // === AUTO-SCROLL INTELLIGENTE ===
+    function initAutoScroll() {
+        let lastScrollHeight = 0;
+        
+        const scrollObserver = new MutationObserver(function(mutations) {
+            if (!appState.settings.autoScroll) return;
             
-            .call-controls button {
-                width: 48px !important;
-                height: 48px !important;
-            }
-        }
-
-        /* === ACCESSIBILITY === */
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-
-        /* === DARK MODE SUPPORT === */
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --teams-secondary: #2d2c2c;
-                --teams-border: #3b3a39;
-                --teams-text: #ffffff;
-                --teams-text-secondary: #a19f9d;
-            }
-        }
-
-        /* === PERFORMANCE OPTIMIZATIONS === */
-        .ts-chat-list, .chat-list {
-            content-visibility: auto !important;
-            contain-intrinsic-size: 100px !important;
-        }
-
-        /* === SCROLLBAR CUSTOM === */
-        ::-webkit-scrollbar {
-            width: 6px !important;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #c1c1c1 !important;
-            border-radius: 3px !important;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent !important;
-        }
-    `;
-
-    // === INIEZIONE STILI ===
-    GM_addStyle(AdvancedStyles);
-
-    // === GESTIONE PERFORMANCE ===
-    const PerformanceManager = {
-        observers: [],
-        
-        init: function() {
-            this.setupIntersectionObserver();
-            this.setupResizeObserver();
-            this.optimizeAnimations();
-        },
-
-        setupIntersectionObserver: function() {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.contentVisibility = 'auto';
-                    } else {
-                        entry.target.style.contentVisibility = 'hidden';
-                    }
-                });
-            });
-
-            document.addEventListener('DOMContentLoaded', () => {
-                const chatItems = document.querySelectorAll('.ts-chat-list-item');
-                chatItems.forEach(item => observer.observe(item));
-            });
-
-            this.observers.push(observer);
-        },
-
-        setupResizeObserver: function() {
-            const observer = new ResizeObserver(Utils.debounce((entries) => {
-                entries.forEach(entry => {
-                    this.handleLayoutShift(entry);
-                });
-            }, 100));
-
-            const mainContent = document.querySelector('.app-main');
-            if (mainContent) {
-                observer.observe(mainContent);
-            }
-
-            this.observers.push(observer);
-        },
-
-        handleLayoutShift: function(entry) {
-            // Prevenire layout shifts
-            entry.target.style.transform = 'translateZ(0)';
-        },
-
-        optimizeAnimations: function() {
-            // Disabilita animazioni se l'utente preferisce ridotto movimento
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                document.documentElement.style.setProperty('--animation-duration', '1ms');
-            }
-        },
-
-        cleanup: function() {
-            this.observers.forEach(observer => observer.disconnect());
-        }
-    };
-
-    // === FEATURE MANAGER ===
-    const FeatureManager = {
-        features: [],
-
-        register: function(name, initFunc, dependencies = []) {
-            this.features.push({ name, initFunc, dependencies, initialized: false });
-        },
-
-        init: function() {
-            this.features.forEach(feature => {
-                try {
-                    if (this.checkDependencies(feature)) {
-                        feature.initFunc();
-                        feature.initialized = true;
-                        console.log(`✅ Feature initialized: ${feature.name}`);
-                    }
-                } catch (error) {
-                    console.error(`❌ Feature failed: ${feature.name}`, error);
-                }
-            });
-        },
-
-        checkDependencies: function(feature) {
-            return feature.dependencies.every(dep => 
-                this.features.find(f => f.name === dep)?.initialized
-            );
-        }
-    };
-
-    // === REGISTRAZIONE FEATURES ===
-    FeatureManager.register('PerformanceManager', () => PerformanceManager.init());
-    
-    FeatureManager.register('TouchOptimizer', () => {
-        // Ottimizzazioni touch
-        document.addEventListener('touchstart', function() {}, { passive: true });
-        
-        // Migliora i bottoni esistenti
-        const optimizeButtons = Utils.debounce(() => {
-            document.querySelectorAll('button').forEach(btn => {
-                btn.style.minHeight = CONFIG.TOUCH_TARGET_SIZE;
-                btn.style.minWidth = CONFIG.TOUCH_TARGET_SIZE;
-            });
-        }, 500);
-        
-        optimizeButtons();
-        setInterval(optimizeButtons, 3000);
-    }, ['PerformanceManager']);
-
-    FeatureManager.register('ChatEnhancer', () => {
-        let autoScrollEnabled = AppState.get('settings.autoScroll');
-        
-        // Auto-scroll intelligente
-        const chatObserver = new MutationObserver(Utils.debounce((mutations) => {
-            if (!autoScrollEnabled) return;
-            
-            mutations.forEach(mutation => {
+            mutations.forEach(function(mutation) {
                 if (mutation.addedNodes.length) {
                     const chatContainer = document.querySelector('.ts-chat-container');
                     if (chatContainer) {
-                        const isNearBottom = 
-                            chatContainer.scrollHeight - chatContainer.clientHeight - chatContainer.scrollTop < 100;
+                        const currentScrollHeight = chatContainer.scrollHeight;
+                        const isNewContent = currentScrollHeight !== lastScrollHeight;
+                        const isNearBottom = chatContainer.scrollHeight - chatContainer.clientHeight - chatContainer.scrollTop < 100;
                         
-                        if (isNearBottom) {
+                        if (isNewContent && isNearBottom) {
                             setTimeout(() => {
                                 chatContainer.scrollTo({
                                     top: chatContainer.scrollHeight,
                                     behavior: 'smooth'
                                 });
+                                lastScrollHeight = currentScrollHeight;
                             }, 100);
                         }
                     }
                 }
             });
-        }, 100));
+        });
 
-        // Inizia osservazione
+        // Avvia osservazione
         setTimeout(() => {
             const chatContainer = document.querySelector('.ts-chat-container');
             if (chatContainer) {
-                chatObserver.observe(chatContainer, {
+                scrollObserver.observe(chatContainer, {
                     childList: true,
                     subtree: true
                 });
+                lastScrollHeight = chatContainer.scrollHeight;
             }
         }, 3000);
+    }
 
-        // Sottoscrizione a cambiamenti settings
-        AppState.subscribe('settings.autoScroll', (value) => {
-            autoScrollEnabled = value;
-        });
-    }, ['PerformanceManager']);
-
-    FeatureManager.register('CallOptimizer', () => {
-        const optimizeCallInterface = Utils.debounce(() => {
+    // === OTTIMIZZAZIONI CHIAMATE ===
+    function optimizeCalls() {
+        const optimizeCallInterface = function() {
             const callControls = document.querySelector('.call-controls, .meeting-controls');
             if (callControls) {
                 callControls.style.display = 'flex';
                 callControls.style.justifyContent = 'center';
-                callControls.style.gap = '16px';
+                callControls.style.gap = '15px';
                 
                 callControls.querySelectorAll('button').forEach(btn => {
                     btn.style.width = '56px';
@@ -735,56 +455,45 @@
                     btn.style.borderRadius = '50%';
                 });
             }
-        }, 500);
+        };
 
         optimizeCallInterface();
         setInterval(optimizeCallInterface, 2000);
-    });
-
-    FeatureManager.register('QuickActions', () => {
-        // Crea il container per le quick actions
-        const actionsContainer = document.createElement('div');
-        actionsContainer.id = 'teams-quick-actions';
-        document.body.appendChild(actionsContainer);
-
-        // Renderizza il componente React
-        const root = ReactDOM.createRoot(actionsContainer);
-        root.render(React.createElement(ReactComponents.QuickActionsMenu));
-    });
+    }
 
     // === INIZIALIZZAZIONE ===
     function initialize() {
-        console.log('🚀 Teams Mobile Ultimate Pro - Inizializzazione...');
+        console.log('🚀 Teams Mobile Optimized - Inizializzazione...');
         
-        // Inizializza le features
-        FeatureManager.init();
-        
-        // User-Agent spoofing per evitare redirect mobile
+        // User-Agent spoofing
         Object.defineProperty(navigator, 'userAgent', {
             get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         });
 
-        // Rileva cambiamenti SPA
+        // Inizializza funzionalità
+        initChatListToggle();
+        optimizeLayout();
+        initAutoScroll();
+        optimizeCalls();
+
+        // Applica ottimizzazioni periodiche
+        setInterval(optimizeLayout, 3000);
+
+        // Gestione navigazione SPA
         let lastUrl = location.href;
         new MutationObserver(() => {
             const url = location.href;
             if (url !== lastUrl) {
                 lastUrl = url;
                 setTimeout(() => {
-                    FeatureManager.init();
+                    optimizeLayout();
+                    initAutoScroll();
                 }, 1000);
             }
         }).observe(document, { subtree: true, childList: true });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            PerformanceManager.cleanup();
-        });
-
-        Utils.notify('Teams Mobile Pro', 'Ottimizzazioni attive!', 2000);
     }
 
-    // Avvia l'inizializzazione
+    // AVVIA TUTTO
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initialize);
     } else {
